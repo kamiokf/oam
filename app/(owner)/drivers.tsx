@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -27,7 +27,16 @@ export default function DriversScreen() {
             title="Drivers"
             subtitle={`${activeDrivers.length} active drivers`}
             headerRight={
-                <TouchableOpacity style={styles.addBtn}>
+                <TouchableOpacity style={styles.addBtn} onPress={() => {
+                    Alert.alert(
+                        'Recruit a Driver',
+                        'Invite a new driver to join your fleet. They\'ll receive an SMS invitation to create their One\'N\'Move account.',
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Send Invite', onPress: () => Alert.alert('Invite Sent! 📩', 'The driver will receive an SMS with instructions to join your fleet.') },
+                        ]
+                    );
+                }}>
                     <Ionicons name="person-add" size={20} color={Colors.textPrimary} />
                 </TouchableOpacity>
             }

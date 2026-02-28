@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -15,6 +15,37 @@ import { mockJobs } from '../../data/jobs';
 export default function JobsScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
+    const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+    const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
+
+    const handleApply = (jobId: string, ownerName: string) => {
+        Alert.alert(
+            'Apply for this position?',
+            `You're about to apply to drive for ${ownerName}. They'll be able to see your profile, ratings, and documents.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Apply Now',
+                    onPress: () => {
+                        setAppliedJobs((prev) => new Set(prev).add(jobId));
+                        Alert.alert('Application Sent! ✅', 'The owner will review your profile and get back to you.');
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleSave = (jobId: string) => {
+        setSavedJobs((prev) => {
+            const next = new Set(prev);
+            if (next.has(jobId)) {
+                next.delete(jobId);
+            } else {
+                next.add(jobId);
+            }
+            return next;
+        });
+    };
 
     const filters = [
         { id: 'all', label: 'All Jobs' },
@@ -116,9 +147,19 @@ export default function JobsScreen() {
                     </View>
 
                     <View style={styles.jobActions}>
-                        <Button title="Apply Now" onPress={() => { }} size="sm" style={styles.applyBtn} />
-                        <TouchableOpacity style={styles.saveBtn}>
-                            <Ionicons name="bookmark-outline" size={20} color={Colors.textSecondary} />
+                        <Button
+                            title={appliedJobs.has(job.id) ? 'Applied ✓' : 'Apply Now'}
+                            onPress={() => handleApply(job.id, job.ownerName)}
+                            size="sm"
+                            style={styles.applyBtn}
+                            disabled={appliedJobs.has(job.id)}
+                        />
+                        <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave(job.id)}>
+                            <Ionicons
+                                name={savedJobs.has(job.id) ? 'bookmark' : 'bookmark-outline'}
+                                size={20}
+                                color={savedJobs.has(job.id) ? Colors.primary : Colors.textSecondary}
+                            />
                         </TouchableOpacity>
                     </View>
                 </Card>

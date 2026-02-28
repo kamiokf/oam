@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { RoleSwitcher } from '../../components/layout/RoleSwitcher';
@@ -17,15 +17,29 @@ export default function OwnerProfile() {
     const { user, logout } = useAuth();
 
     const menuItems = [
-        { icon: 'business' as const, label: 'Business Information', subtitle: 'Company name, TRN, address' },
-        { icon: 'document-text' as const, label: 'Business Documents', subtitle: 'Registration, insurance, permits', badge: '2 Expiring' },
-        { icon: 'shield-checkmark' as const, label: 'Verification Status', subtitle: 'Business verified' },
-        { icon: 'wallet' as const, label: 'Payment Settings', subtitle: 'Bank accounts, payment methods' },
-        { icon: 'people' as const, label: 'Team Access', subtitle: 'Manage team members' },
-        { icon: 'notifications' as const, label: 'Notifications', subtitle: 'Alerts, reminders, updates' },
-        { icon: 'help-circle' as const, label: 'Help & Support', subtitle: 'FAQ, contact support' },
-        { icon: 'settings' as const, label: 'Settings', subtitle: 'Privacy, about, language' },
+        { icon: 'business' as const, label: 'Business Information', subtitle: 'Company name, TRN, address', route: null },
+        { icon: 'document-text' as const, label: 'Business Documents', subtitle: 'Registration, insurance, permits', badge: '2 Expiring', route: '/(shared)/background-checks' },
+        { icon: 'shield-checkmark' as const, label: 'Verification Status', subtitle: 'Business verified', route: null },
+        { icon: 'wallet' as const, label: 'Payment Settings', subtitle: 'Bank accounts, payment methods', route: null },
+        { icon: 'people' as const, label: 'Team Access', subtitle: 'Manage team members', route: '/(owner)/drivers' },
+        { icon: 'notifications' as const, label: 'Notifications', subtitle: 'Alerts, reminders, updates', route: '/(shared)/notifications' },
+        { icon: 'help-circle' as const, label: 'Help & Support', subtitle: 'FAQ, contact support', route: null },
+        { icon: 'settings' as const, label: 'Settings', subtitle: 'Privacy, about, language', route: '/(shared)/settings' },
     ];
+
+    const handleMenuPress = (item: typeof menuItems[0]) => {
+        if (item.route) {
+            router.push(item.route as any);
+        } else {
+            const messages: Record<string, string> = {
+                'Business Information': 'View and edit your business details, TRN, and registered address.',
+                'Verification Status': 'Your business is verified ✅\nAll documents are up to date.',
+                'Payment Settings': 'Manage your bank accounts and payment methods for driver payouts.',
+                'Help & Support': 'Need help? Contact us:\n📧 support@onenmove.app\n📞 1-876-555-HELP',
+            };
+            Alert.alert(item.label, messages[item.label] || item.subtitle);
+        }
+    };
 
     return (
         <ScreenWrapper title="Profile" headerRight={<RoleSwitcher />}>
@@ -67,7 +81,7 @@ export default function OwnerProfile() {
 
             <View style={styles.menu}>
                 {menuItems.map((item, i) => (
-                    <TouchableOpacity key={i} style={styles.menuItem} activeOpacity={0.7}>
+                    <TouchableOpacity key={i} style={styles.menuItem} activeOpacity={0.7} onPress={() => handleMenuPress(item)}>
                         <View style={[styles.menuIconWrap, { backgroundColor: Colors.secondaryMuted }]}>
                             <Ionicons name={item.icon} size={22} color={Colors.secondary} />
                         </View>

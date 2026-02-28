@@ -74,7 +74,7 @@ export default function DriverDashboard() {
             </View>
 
             {/* Smart Matches */}
-            <SectionHeader title="Recommended Jobs" action="View All" style={styles.section} />
+            <SectionHeader title="Recommended Jobs" action="View All" onAction={() => router.push('/(driver)/jobs')} style={styles.section} />
             {smartJobs.map((job) => (
                 <Card key={job.id} style={styles.jobCard}>
                     <View style={styles.jobHeader}>

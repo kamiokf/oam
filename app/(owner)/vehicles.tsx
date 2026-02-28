@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -37,7 +37,16 @@ export default function VehiclesScreen() {
             title="Vehicles"
             subtitle={`${mockVehicles.length} vehicles in fleet`}
             headerRight={
-                <TouchableOpacity style={styles.addBtn}>
+                <TouchableOpacity style={styles.addBtn} onPress={() => {
+                    Alert.alert(
+                        'Add New Vehicle',
+                        'Enter vehicle details to add to your fleet.\n\n🚗 Support for Toyota Hiace, Coaster, Nissan Caravan, and more.',
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Continue', onPress: () => Alert.alert('Coming Soon', 'Vehicle registration will be available in the next update!') },
+                        ]
+                    );
+                }}>
                     <Ionicons name="add" size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
             }

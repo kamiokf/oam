@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { RoleSwitcher } from '../../components/layout/RoleSwitcher';
@@ -20,16 +20,24 @@ export default function DriverProfile() {
     const { isDualRole } = useRole();
 
     const menuItems = [
-        { icon: 'person-circle' as const, label: 'Personal Information', subtitle: 'Name, phone, email' },
-        { icon: 'shield-checkmark' as const, label: 'Background Checks', subtitle: 'Premium verified • 3/3 complete' },
-        { icon: 'navigate' as const, label: 'Trip Log', subtitle: 'GPS-verified trips & mileage' },
-        { icon: 'document-text' as const, label: 'Documents', subtitle: 'License, badges, records', badge: '1 Expiring' },
-        { icon: 'star' as const, label: 'Reviews & Ratings', subtitle: '4.8 average • 23 reviews' },
-        { icon: 'gift' as const, label: 'Referrals', subtitle: '4 referred • J$5,000 earned' },
-        { icon: 'alert-circle' as const, label: 'Disputes', subtitle: '1 active dispute' },
-        { icon: 'notifications' as const, label: 'Notifications', subtitle: 'Push & SMS alerts' },
-        { icon: 'settings' as const, label: 'Settings', subtitle: 'Privacy, SMS, GPS tracking' },
+        { icon: 'person-circle' as const, label: 'Personal Information', subtitle: 'Name, phone, email', route: null },
+        { icon: 'shield-checkmark' as const, label: 'Background Checks', subtitle: 'Premium verified • 3/3 complete', route: '/(shared)/background-checks' },
+        { icon: 'navigate' as const, label: 'Trip Log', subtitle: 'GPS-verified trips & mileage', route: '/(driver)/trip-logger' },
+        { icon: 'document-text' as const, label: 'Documents', subtitle: 'License, badges, records', badge: '1 Expiring', route: '/(shared)/background-checks' },
+        { icon: 'star' as const, label: 'Reviews & Ratings', subtitle: '4.8 average • 23 reviews', route: '/(shared)/reviews' },
+        { icon: 'gift' as const, label: 'Referrals', subtitle: '4 referred • J$5,000 earned', route: '/(shared)/referrals' },
+        { icon: 'alert-circle' as const, label: 'Disputes', subtitle: '1 active dispute', route: '/(shared)/disputes' },
+        { icon: 'notifications' as const, label: 'Notifications', subtitle: 'Push & SMS alerts', route: '/(shared)/notifications' },
+        { icon: 'settings' as const, label: 'Settings', subtitle: 'Privacy, SMS, GPS tracking', route: '/(shared)/settings' },
     ];
+
+    const handleMenuPress = (item: typeof menuItems[0]) => {
+        if (item.route) {
+            router.push(item.route as any);
+        } else {
+            Alert.alert(item.label, `${item.subtitle}\n\nEdit your personal details from the Settings screen.`);
+        }
+    };
 
     return (
         <ScreenWrapper title="Profile" headerRight={isDualRole ? <RoleSwitcher /> : undefined}>
@@ -73,7 +81,7 @@ export default function DriverProfile() {
             {/* Menu Items */}
             <View style={styles.menu}>
                 {menuItems.map((item, i) => (
-                    <TouchableOpacity key={i} style={styles.menuItem} activeOpacity={0.7}>
+                    <TouchableOpacity key={i} style={styles.menuItem} activeOpacity={0.7} onPress={() => handleMenuPress(item)}>
                         <View style={styles.menuIconWrap}>
                             <Ionicons name={item.icon} size={22} color={Colors.primary} />
                         </View>

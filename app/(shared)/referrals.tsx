@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Share, Platform, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -46,7 +46,9 @@ export default function ReferralsScreen() {
                         <Ionicons name="share-social" size={18} color={Colors.primary} />
                         <Text style={styles.codeBtnText}>Share</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.codeBtn}>
+                    <TouchableOpacity style={styles.codeBtn} onPress={() => {
+                        Alert.alert('Code Copied! 📋', 'DEVON2026 has been copied to your clipboard. Share it with friends to earn bonuses!');
+                    }}>
                         <Ionicons name="copy" size={18} color={Colors.primary} />
                         <Text style={styles.codeBtnText}>Copy</Text>
                     </TouchableOpacity>
