@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { RoleSwitcher } from '../../components/layout/RoleSwitcher';
 import { SectionHeader } from '../../components/layout/SectionHeader';
@@ -14,6 +15,7 @@ import { mockVehicles } from '../../data/vehicles';
 import { mockDrivers } from '../../data/drivers';
 
 export default function FleetDashboard() {
+    const router = useRouter();
     const activeVehicles = mockVehicles.filter((v) => v.status === 'active');
     const totalRevenue = activeVehicles.reduce((sum, v) => sum + v.dailyRevenue, 0);
     const activeDriverCount = mockDrivers.filter((d) => d.status === 'active').length;
@@ -103,12 +105,12 @@ export default function FleetDashboard() {
             <SectionHeader title="Quick Actions" style={styles.section} />
             <View style={styles.quickActionsRow}>
                 {[
-                    { icon: 'add-circle' as const, label: 'Add Vehicle', color: Colors.primary },
-                    { icon: 'person-add' as const, label: 'Recruit Driver', color: Colors.secondary },
-                    { icon: 'document' as const, label: 'Post Job', color: Colors.info },
-                    { icon: 'analytics' as const, label: 'Reports', color: Colors.accent },
+                    { icon: 'add-circle' as const, label: 'Add Vehicle', color: Colors.primary, route: '/(owner)/vehicles' as const },
+                    { icon: 'person-add' as const, label: 'Recruit Driver', color: Colors.secondary, route: '/(owner)/drivers' as const },
+                    { icon: 'document' as const, label: 'Post Job', color: Colors.info, route: '/(driver)/jobs' as const },
+                    { icon: 'analytics' as const, label: 'Reports', color: Colors.accent, route: '/(owner)/analytics' as const },
                 ].map((action, i) => (
-                    <TouchableOpacity key={i} style={styles.quickAction} activeOpacity={0.7}>
+                    <TouchableOpacity key={i} style={styles.quickAction} activeOpacity={0.7} onPress={() => router.push(action.route)}>
                         <View style={[styles.quickActionIcon, { backgroundColor: `${action.color}20` }]}>
                             <Ionicons name={action.icon} size={22} color={action.color} />
                         </View>

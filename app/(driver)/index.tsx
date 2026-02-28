@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { RoleSwitcher } from '../../components/layout/RoleSwitcher';
 import { SectionHeader } from '../../components/layout/SectionHeader';
@@ -15,11 +16,13 @@ import { earningsSummary } from '../../data/earnings';
 import { mockJobs } from '../../data/jobs';
 
 export default function DriverDashboard() {
+    const router = useRouter();
+
     const quickActions = [
-        { icon: 'add-circle' as const, label: 'Log Earnings', color: Colors.primary },
-        { icon: 'briefcase' as const, label: 'Browse Jobs', color: Colors.secondary },
-        { icon: 'calendar' as const, label: 'Schedule', color: Colors.info },
-        { icon: 'document-text' as const, label: 'Documents', color: Colors.accent },
+        { icon: 'add-circle' as const, label: 'Log Earnings', color: Colors.primary, route: '/(driver)/earnings' as const },
+        { icon: 'briefcase' as const, label: 'Browse Jobs', color: Colors.secondary, route: '/(driver)/jobs' as const },
+        { icon: 'calendar' as const, label: 'Schedule', color: Colors.info, route: '/(driver)/schedule' as const },
+        { icon: 'document-text' as const, label: 'Documents', color: Colors.accent, route: '/(shared)/background-checks' as const },
     ];
 
     const smartJobs = mockJobs.filter((j) => j.isSmartMatch).slice(0, 3);
@@ -61,7 +64,7 @@ export default function DriverDashboard() {
             <SectionHeader title="Quick Actions" style={styles.section} />
             <View style={styles.quickActions}>
                 {quickActions.map((action, i) => (
-                    <TouchableOpacity key={i} style={styles.quickAction} activeOpacity={0.7}>
+                    <TouchableOpacity key={i} style={styles.quickAction} activeOpacity={0.7} onPress={() => router.push(action.route)}>
                         <View style={[styles.quickActionIcon, { backgroundColor: `${action.color}20` }]}>
                             <Ionicons name={action.icon} size={24} color={action.color} />
                         </View>
