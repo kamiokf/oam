@@ -60,6 +60,12 @@ export default function OwnerLayout() {
                     tabBarIcon: ({ color }) => <Ionicons name="person" size={22} color={color} />,
                 }}
             />
+            <Tabs.Screen
+                name="trip-reports"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }

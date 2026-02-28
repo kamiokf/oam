@@ -71,6 +71,12 @@ export default function DriverLayout() {
                     ),
                 }}
             />
+            <Tabs.Screen
+                name="trip-logger"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }
