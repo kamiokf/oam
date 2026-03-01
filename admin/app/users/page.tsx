@@ -3,9 +3,10 @@
 import ProtectedLayout from '../components/ProtectedLayout';
 import StatusBadge from '../components/StatusBadge';
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
-import { mockUsers, type PlatformUser } from '../data/users';
+import { insforge } from '../../lib/insforge';
+import type { PlatformUser } from '../data/users';
 
 type SortKey = 'name' | 'role' | 'parish' | 'verificationTier' | 'status' | 'registeredDate' | 'lastActive' | 'rating';
 type SortDir = 'asc' | 'desc';
@@ -18,7 +19,61 @@ export default function UsersPage() {
     const [sortKey, setSortKey] = useState<SortKey>('registeredDate');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
     const [page, setPage] = useState(1);
+    const [users, setUsers] = useState<PlatformUser[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const perPage = 10;
+
+    useEffect(() => {
+        async function fetchUsers() {
+            setIsLoading(true);
+            try {
+                const { data, error: dbError } = await insforge.database
+                    .from('users')
+                    .select('*');
+
+                if (dbError) throw dbError;
+
+                // Map database snake_case columns back to the camelCase frontend types
+                const formattedUsers: PlatformUser[] = (data || []).map((u: any) => ({
+                    id: u.id,
+                    name: u.name,
+                    avatar: u.avatar || '',
+                    phone: u.phone || '',
+                    email: u.email || '',
+                    trn: u.trn || '',
+                    parish: u.parish || '',
+                    role: u.role,
+                    status: u.status,
+                    verificationTier: u.verification_tier,
+                    rating: parseFloat(u.rating) || 0,
+                    registeredDate: new Date(u.registered_date).toISOString().split('T')[0],
+                    lastActive: new Date(u.last_active).toISOString().split('T')[0],
+                    documents: [], // To be fetched separately if needed
+                    notes: [],
+                    statusHistory: [],
+                    licenceClass: u.licence_class,
+                    licenceExpiry: u.licence_expiry,
+                    tlcNumber: u.tlc_number,
+                    totalTrips: u.total_trips,
+                    experience: u.experience,
+                    businessName: u.business_name,
+                    routeLicenceNumber: u.route_licence_number,
+                    numberOfVehicles: u.number_of_vehicles,
+                    primaryRoutes: u.primary_routes || [],
+                }));
+
+                setUsers(formattedUsers);
+            } catch (err: any) {
+                console.error("Failed to fetch users:", err);
+                setError("Failed to load users from the platform.");
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        fetchUsers();
+    }, []);
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) {
@@ -35,30 +90,30 @@ export default function UsersPage() {
     };
 
     const filtered = useMemo(() => {
-        let users = [...mockUsers];
+        let currentUsers = [...users];
 
         if (search) {
             const q = search.toLowerCase();
-            users = users.filter(u =>
+            currentUsers = currentUsers.filter(u =>
                 u.name.toLowerCase().includes(q) ||
                 u.phone.includes(q) ||
                 u.trn.includes(q) ||
                 (u.email && u.email.toLowerCase().includes(q))
             );
         }
-        if (roleFilter) users = users.filter(u => u.role === roleFilter);
-        if (statusFilter) users = users.filter(u => u.status === statusFilter);
-        if (tierFilter) users = users.filter(u => u.verificationTier === tierFilter);
+        if (roleFilter) currentUsers = currentUsers.filter(u => u.role === roleFilter);
+        if (statusFilter) currentUsers = currentUsers.filter(u => u.status === statusFilter);
+        if (tierFilter) currentUsers = currentUsers.filter(u => u.verificationTier === tierFilter);
 
-        users.sort((a, b) => {
+        currentUsers.sort((a, b) => {
             const av = a[sortKey] ?? '';
             const bv = b[sortKey] ?? '';
             const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
             return sortDir === 'asc' ? cmp : -cmp;
         });
 
-        return users;
-    }, [search, roleFilter, statusFilter, tierFilter, sortKey, sortDir]);
+        return currentUsers;
+    }, [search, roleFilter, statusFilter, tierFilter, sortKey, sortDir, users]);
 
     const totalPages = Math.ceil(filtered.length / perPage);
     const paged = filtered.slice((page - 1) * perPage, page * perPage);
@@ -71,7 +126,7 @@ export default function UsersPage() {
                 <div className="page-header">
                     <div>
                         <h1>User Management</h1>
-                        <p>{mockUsers.length} registered users on the platform</p>
+                        <p>{isLoading ? 'Loading...' : `${users.length} registered users on the platform`}</p>
                     </div>
                 </div>
 
@@ -137,7 +192,25 @@ export default function UsersPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {paged.map(user => (
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan={9} style={{ textAlign: 'center', padding: '40px' }}>
+                                            Loading users...
+                                        </td>
+                                    </tr>
+                                ) : error ? (
+                                    <tr>
+                                        <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--error)' }}>
+                                            {error}
+                                        </td>
+                                    </tr>
+                                ) : paged.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                            No users found matching your filters.
+                                        </td>
+                                    </tr>
+                                ) : paged.map(user => (
                                     <tr key={user.id} style={{ cursor: 'pointer' }}>
                                         <td>
                                             <Link href={`/users/${user.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>

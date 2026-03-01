@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@insforge/sdk": "^1.1.6-dev.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.36.3",
     "lucide-react": "^0.575.0",
