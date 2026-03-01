@@ -14,9 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
 import { earningsSummary } from '../../data/earnings';
 import { mockJobs } from '../../data/jobs';
+import { useAuth } from '../../context/AuthContext';
+import { useRole } from '../../context/RoleContext';
 
 export default function DriverDashboard() {
     const router = useRouter();
+    const { user } = useAuth();
+    const { isDualRole } = useRole();
 
     const quickActions = [
         { icon: 'add-circle' as const, label: 'Log Earnings', color: Colors.primary, route: '/(driver)/earnings' as const },
@@ -30,8 +34,8 @@ export default function DriverDashboard() {
     return (
         <ScreenWrapper
             title="Dashboard"
-            subtitle="Good evening, Alex"
-            headerRight={<RoleSwitcher />}
+            subtitle={`Good evening, ${user?.name?.split(' ')[0] || 'there'}`}
+            headerRight={isDualRole ? <RoleSwitcher /> : undefined}
         >
             {/* Earnings Summary */}
             <Card variant="highlighted" style={styles.earningsCard}>

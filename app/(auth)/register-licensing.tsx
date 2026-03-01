@@ -113,7 +113,7 @@ export default function RegisterLicensingScreen() {
 
                             {/* Driver: TLC Number */}
                             <Input
-                                label="TLC Number (PPV Badge)"
+                                label="PPV Badge Number"
                                 placeholder="e.g. PPV-78901"
                                 value={data.tlcNumber}
                                 onChangeText={(v) => { updateField('tlcNumber', v); setErrors((e) => ({ ...e, tlcNumber: '' })); }}

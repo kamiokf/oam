@@ -11,10 +11,12 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
+import { useRole } from '../../context/RoleContext';
 
 export default function OwnerProfile() {
     const router = useRouter();
     const { user, logout } = useAuth();
+    const { isDualRole } = useRole();
 
     const menuItems = [
         { icon: 'business' as const, label: 'Business Information', subtitle: 'Company name, TRN, address', route: null },
@@ -42,7 +44,7 @@ export default function OwnerProfile() {
     };
 
     return (
-        <ScreenWrapper title="Profile" headerRight={<RoleSwitcher />}>
+        <ScreenWrapper title="Profile" headerRight={isDualRole ? <RoleSwitcher /> : undefined}>
             <Card variant="elevated" style={styles.profileCard}>
                 <View style={styles.profileHeader}>
                     <Avatar initials={user?.avatar || 'AM'} size={64} bgColor={Colors.secondaryMuted} color={Colors.secondaryDark} />

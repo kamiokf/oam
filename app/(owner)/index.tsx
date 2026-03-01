@@ -12,10 +12,14 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import { useRole } from '../../context/RoleContext';
 
 export default function FleetDashboard() {
     const router = useRouter();
     const { vehicles, drivers } = useData();
+    const { user } = useAuth();
+    const { isDualRole } = useRole();
     const activeVehicles = vehicles.filter((v) => v.status === 'active');
     const totalRevenue = activeVehicles.reduce((sum, v) => sum + v.dailyRevenue, 0);
     const activeDriverCount = drivers.filter((d) => d.status === 'active').length;
@@ -36,7 +40,7 @@ export default function FleetDashboard() {
     });
 
     return (
-        <ScreenWrapper title="Fleet Dashboard" subtitle="Good evening, Alex" headerRight={<RoleSwitcher />}>
+        <ScreenWrapper title="Fleet Dashboard" subtitle={`Good evening, ${user?.name?.split(' ')[0] || 'there'}`} headerRight={isDualRole ? <RoleSwitcher /> : undefined}>
             {/* Stats Grid */}
             <View style={styles.statsGrid}>
                 {stats.map((stat, i) => (
