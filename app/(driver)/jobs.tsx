@@ -10,9 +10,10 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
-import { mockJobs } from '../../data/jobs';
+import { useData } from '../../context/DataContext';
 
 export default function JobsScreen() {
+    const { jobs } = useData();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
@@ -54,7 +55,7 @@ export default function JobsScreen() {
         { id: 'mobay', label: 'Montego Bay' },
     ];
 
-    const filteredJobs = mockJobs.filter((job) => {
+    const filteredJobs = jobs.filter((job) => {
         if (activeFilter === 'match') return job.isSmartMatch;
         if (activeFilter === 'kingston') return job.route.from === 'Kingston';
         if (activeFilter === 'mobay') return job.route.from === 'Montego Bay' || job.route.to === 'Montego Bay';
@@ -62,7 +63,7 @@ export default function JobsScreen() {
     });
 
     return (
-        <ScreenWrapper title="Browse Jobs" subtitle={`${mockJobs.length} positions available`}>
+        <ScreenWrapper title="Browse Jobs" subtitle={`${jobs.length} positions available`}>
             {/* Search Bar */}
             <View style={styles.searchBar}>
                 <Ionicons name="search" size={18} color={Colors.textMuted} />

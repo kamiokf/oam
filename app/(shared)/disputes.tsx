@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -11,15 +11,19 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatRelativeDate } from '../../utils/formatting';
-import { mockDisputes, DISPUTE_TYPES } from '../../data/disputes';
+import { DISPUTE_TYPES } from '../../data/disputes';
+import { useData } from '../../context/DataContext';
 
 export default function DisputesScreen() {
+    const { disputes, addDispute } = useData();
     const [tab, setTab] = useState<'active' | 'resolved'>('active');
     const [showForm, setShowForm] = useState(false);
     const [selectedType, setSelectedType] = useState<string | null>(null);
+    const [disputeDesc, setDisputeDesc] = useState('');
+    const [againstName, setAgainstName] = useState('');
 
-    const active = mockDisputes.filter((d) => ['open', 'under_review', 'escalated'].includes(d.status));
-    const resolved = mockDisputes.filter((d) => ['resolved', 'dismissed'].includes(d.status));
+    const active = disputes.filter((d) => ['open', 'under_review', 'escalated'].includes(d.status));
+    const resolved = disputes.filter((d) => ['resolved', 'dismissed'].includes(d.status));
     const displayed = tab === 'active' ? active : resolved;
 
     const statusCfg: Record<string, { color: string; label: string }> = {
@@ -62,9 +66,67 @@ export default function DisputesScreen() {
                             {DISPUTE_TYPES[selectedType as keyof typeof DISPUTE_TYPES].description}
                         </Text>
                     )}
+                    {selectedType && (
+                        <>
+                            <View style={styles.formField}>
+                                <Text style={styles.fieldLabel}>Against</Text>
+                                <TextInput
+                                    style={styles.formInput}
+                                    value={againstName}
+                                    onChangeText={setAgainstName}
+                                    placeholder="Name of the person"
+                                    placeholderTextColor={Colors.textMuted}
+                                />
+                            </View>
+                            <View style={styles.formField}>
+                                <Text style={styles.fieldLabel}>Description</Text>
+                                <TextInput
+                                    style={[styles.formInput, { minHeight: 80 }]}
+                                    value={disputeDesc}
+                                    onChangeText={setDisputeDesc}
+                                    placeholder="Describe the issue..."
+                                    placeholderTextColor={Colors.textMuted}
+                                    multiline
+                                    textAlignVertical="top"
+                                />
+                            </View>
+                        </>
+                    )}
                     <View style={styles.formActions}>
-                        <Button title="Cancel" variant="ghost" size="sm" onPress={() => { setShowForm(false); setSelectedType(null); }} />
-                        <Button title="Continue" variant="primary" size="sm" onPress={() => setShowForm(false)} />
+                        <Button title="Cancel" variant="ghost" size="sm" onPress={() => { setShowForm(false); setSelectedType(null); setDisputeDesc(''); setAgainstName(''); }} />
+                        <Button title="File Dispute" variant="primary" size="sm" onPress={() => {
+                            if (!selectedType) {
+                                Alert.alert('Select Type', 'Please select a dispute type.');
+                                return;
+                            }
+                            const typeInfo = DISPUTE_TYPES[selectedType as keyof typeof DISPUTE_TYPES];
+                            const initials = againstName ? againstName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'XX';
+                            addDispute({
+                                filedBy: 'd1',
+                                filedByName: 'Devon Smith',
+                                filedByAvatar: 'DS',
+                                filedByRole: 'driver',
+                                against: 'unknown',
+                                againstName: againstName || 'Unknown',
+                                againstAvatar: initials,
+                                againstRole: 'owner',
+                                type: selectedType as any,
+                                category: typeInfo.label,
+                                description: disputeDesc || `Dispute filed regarding: ${typeInfo.label}`,
+                                status: 'open',
+                                priority: 'medium',
+                                evidence: [],
+                                timeline: [
+                                    { date: new Date().toISOString(), action: 'Dispute Filed', description: `${againstName || 'Unknown'} reported for ${typeInfo.label.toLowerCase()}`, actor: 'reporter' },
+                                ],
+                                dateOpened: new Date().toISOString().split('T')[0],
+                            });
+                            Alert.alert('Dispute Filed ⚖️', `Your ${typeInfo.label} dispute has been submitted and will be reviewed within 24 hours.`);
+                            setShowForm(false);
+                            setSelectedType(null);
+                            setDisputeDesc('');
+                            setAgainstName('');
+                        }} />
                     </View>
                 </Card>
             )}
@@ -176,6 +238,9 @@ const styles = StyleSheet.create({
     typeLabel: { ...Typography.small, color: Colors.textSecondary },
     typeLabelActive: { color: Colors.textInverse, fontWeight: '700' },
     typeDesc: { ...Typography.caption, color: Colors.textMuted, textAlign: 'center' },
+    formField: { gap: Spacing.xs },
+    fieldLabel: { ...Typography.captionBold, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+    formInput: { ...Typography.body, color: Colors.textPrimary, backgroundColor: Colors.surfaceLight, borderRadius: BorderRadius.md, paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg, borderWidth: 1, borderColor: Colors.surfaceBorder },
     formActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.md },
     tabs: { flexDirection: 'row', gap: Spacing.sm, marginVertical: Spacing.xl },
     tab: { flex: 1, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: BorderRadius.full, backgroundColor: Colors.surfaceLight },

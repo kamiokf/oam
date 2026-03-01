@@ -10,11 +10,14 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
-import { mockDrivers } from '../../data/drivers';
+import { useData } from '../../context/DataContext';
+import { useRouter } from 'expo-router';
 
 export default function DriversScreen() {
-    const activeDrivers = mockDrivers.filter((d) => d.status === 'active');
-    const pendingDrivers = mockDrivers.filter((d) => d.status === 'pending' || d.status === 'inactive');
+    const { drivers } = useData();
+    const router = useRouter();
+    const activeDrivers = drivers.filter((d) => d.status === 'active');
+    const pendingDrivers = drivers.filter((d) => d.status === 'pending' || d.status === 'inactive');
 
     const statusConfig = {
         active: { variant: 'success' as const, label: 'Active' },
@@ -27,16 +30,7 @@ export default function DriversScreen() {
             title="Drivers"
             subtitle={`${activeDrivers.length} active drivers`}
             headerRight={
-                <TouchableOpacity style={styles.addBtn} onPress={() => {
-                    Alert.alert(
-                        'Recruit a Driver',
-                        'Invite a new driver to join your fleet. They\'ll receive an SMS invitation to create their One\'N\'Move account.',
-                        [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Send Invite', onPress: () => Alert.alert('Invite Sent! 📩', 'The driver will receive an SMS with instructions to join your fleet.') },
-                        ]
-                    );
-                }}>
+                <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/(owner)/add-driver')}>
                     <Ionicons name="person-add" size={20} color={Colors.textPrimary} />
                 </TouchableOpacity>
             }

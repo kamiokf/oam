@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
@@ -11,13 +11,15 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function LoginScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams<{ role: string }>();
     const { login, isLoading } = useAuth();
     const [phone, setPhone] = useState('');
+    const role = params.role || 'driver';
 
     const handleContinue = async () => {
         if (phone.length >= 7) {
             await login(phone);
-            router.push('/(auth)/verify');
+            router.push(`/(auth)/verify?role=${role}&phone=${encodeURIComponent('+1 876 ' + phone)}`);
         }
     };
 
@@ -56,7 +58,7 @@ export default function LoginScreen() {
 
             <View style={styles.bottom}>
                 <Button
-                    title="Continue"
+                    title="Send OTP"
                     onPress={handleContinue}
                     size="lg"
                     fullWidth

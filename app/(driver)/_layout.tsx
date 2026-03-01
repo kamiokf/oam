@@ -77,6 +77,12 @@ export default function DriverLayout() {
                     href: null,
                 }}
             />
+            <Tabs.Screen
+                name="log-earnings"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }

@@ -11,23 +11,23 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
-import { mockVehicles } from '../../data/vehicles';
-import { mockDrivers } from '../../data/drivers';
+import { useData } from '../../context/DataContext';
 
 export default function FleetDashboard() {
     const router = useRouter();
-    const activeVehicles = mockVehicles.filter((v) => v.status === 'active');
+    const { vehicles, drivers } = useData();
+    const activeVehicles = vehicles.filter((v) => v.status === 'active');
     const totalRevenue = activeVehicles.reduce((sum, v) => sum + v.dailyRevenue, 0);
-    const activeDriverCount = mockDrivers.filter((d) => d.status === 'active').length;
+    const activeDriverCount = drivers.filter((d) => d.status === 'active').length;
 
     const stats = [
-        { icon: 'car' as const, label: 'Total Vehicles', value: `${mockVehicles.length}`, color: Colors.primary },
+        { icon: 'car' as const, label: 'Total Vehicles', value: `${vehicles.length}`, color: Colors.primary },
         { icon: 'checkmark-circle' as const, label: 'Active', value: `${activeVehicles.length}`, color: Colors.success },
         { icon: 'people' as const, label: 'Drivers', value: `${activeDriverCount}`, color: Colors.info },
         { icon: 'cash' as const, label: 'Daily Revenue', value: formatCurrency(totalRevenue), color: Colors.secondary },
     ];
 
-    const expiringDocs = mockVehicles.filter((v) => {
+    const expiringDocs = vehicles.filter((v) => {
         const fitness = new Date(v.fitnessExpiry);
         const insurance = new Date(v.insuranceExpiry);
         const thirtyDays = new Date();
@@ -105,9 +105,9 @@ export default function FleetDashboard() {
             <SectionHeader title="Quick Actions" style={styles.section} />
             <View style={styles.quickActionsRow}>
                 {[
-                    { icon: 'add-circle' as const, label: 'Add Vehicle', color: Colors.primary, route: '/(owner)/vehicles' as const },
-                    { icon: 'person-add' as const, label: 'Recruit Driver', color: Colors.secondary, route: '/(owner)/drivers' as const },
-                    { icon: 'document' as const, label: 'Post Job', color: Colors.info, route: '/(driver)/jobs' as const },
+                    { icon: 'add-circle' as const, label: 'Add Vehicle', color: Colors.primary, route: '/(owner)/add-vehicle' as const },
+                    { icon: 'person-add' as const, label: 'Recruit Driver', color: Colors.secondary, route: '/(owner)/add-driver' as const },
+                    { icon: 'document' as const, label: 'Post Job', color: Colors.info, route: '/(owner)/post-job' as const },
                     { icon: 'analytics' as const, label: 'Reports', color: Colors.accent, route: '/(owner)/analytics' as const },
                 ].map((action, i) => (
                     <TouchableOpacity key={i} style={styles.quickAction} activeOpacity={0.7} onPress={() => router.push(action.route)}>

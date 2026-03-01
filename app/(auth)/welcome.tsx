@@ -34,7 +34,7 @@ export default function WelcomeScreen() {
                 <TouchableOpacity
                     style={styles.driverBtn}
                     activeOpacity={0.85}
-                    onPress={() => router.push('/(auth)/login')}
+                    onPress={() => router.push('/(auth)/login?role=driver')}
                 >
                     <View style={styles.btnRow}>
                         <View style={styles.btnIconWrap}>
@@ -51,7 +51,7 @@ export default function WelcomeScreen() {
                 <TouchableOpacity
                     style={styles.ownerBtn}
                     activeOpacity={0.85}
-                    onPress={() => router.push('/(auth)/login')}
+                    onPress={() => router.push('/(auth)/login?role=owner')}
                 >
                     <View style={styles.btnRow}>
                         <View style={[styles.btnIconWrap, styles.ownerIconWrap]}>

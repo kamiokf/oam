@@ -10,16 +10,19 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, getDaysUntil, getExpiryStatus } from '../../utils/formatting';
-import { mockVehicles } from '../../data/vehicles';
+import { useData } from '../../context/DataContext';
+import { useRouter } from 'expo-router';
 
 export default function VehiclesScreen() {
+    const { vehicles } = useData();
+    const router = useRouter();
     const [activeFilter, setActiveFilter] = useState('all');
 
     const filters = [
-        { id: 'all', label: 'All', count: mockVehicles.length },
-        { id: 'active', label: 'Active', count: mockVehicles.filter((v) => v.status === 'active').length },
-        { id: 'maintenance', label: 'Maintenance', count: mockVehicles.filter((v) => v.status === 'maintenance').length },
-        { id: 'inactive', label: 'Inactive', count: mockVehicles.filter((v) => v.status === 'inactive').length },
+        { id: 'all', label: 'All', count: vehicles.length },
+        { id: 'active', label: 'Active', count: vehicles.filter((v) => v.status === 'active').length },
+        { id: 'maintenance', label: 'Maintenance', count: vehicles.filter((v) => v.status === 'maintenance').length },
+        { id: 'inactive', label: 'Inactive', count: vehicles.filter((v) => v.status === 'inactive').length },
     ];
 
     const statusConfig = {
@@ -29,24 +32,15 @@ export default function VehiclesScreen() {
     };
 
     const filteredVehicles = activeFilter === 'all'
-        ? mockVehicles
-        : mockVehicles.filter((v) => v.status === activeFilter);
+        ? vehicles
+        : vehicles.filter((v) => v.status === activeFilter);
 
     return (
         <ScreenWrapper
             title="Vehicles"
-            subtitle={`${mockVehicles.length} vehicles in fleet`}
+            subtitle={`${vehicles.length} vehicles in fleet`}
             headerRight={
-                <TouchableOpacity style={styles.addBtn} onPress={() => {
-                    Alert.alert(
-                        'Add New Vehicle',
-                        'Enter vehicle details to add to your fleet.\n\n🚗 Support for Toyota Hiace, Coaster, Nissan Caravan, and more.',
-                        [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Continue', onPress: () => Alert.alert('Coming Soon', 'Vehicle registration will be available in the next update!') },
-                        ]
-                    );
-                }}>
+                <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/(owner)/add-vehicle')}>
                     <Ionicons name="add" size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
             }

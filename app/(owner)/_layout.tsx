@@ -66,6 +66,24 @@ export default function OwnerLayout() {
                     href: null,
                 }}
             />
+            <Tabs.Screen
+                name="add-vehicle"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="add-driver"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="post-job"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }

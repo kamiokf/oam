@@ -9,7 +9,9 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, formatShortDate } from '../../utils/formatting';
-import { mockEarnings, earningsSummary, weeklyEarningsData } from '../../data/earnings';
+import { earningsSummary, weeklyEarningsData } from '../../data/earnings';
+import { useData } from '../../context/DataContext';
+import { useRouter } from 'expo-router';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -64,6 +66,8 @@ const chartStyles = StyleSheet.create({
 });
 
 export default function EarningsScreen() {
+    const { earnings } = useData();
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState<'week' | 'month'>('week');
     const tabs = [
         { id: 'week' as const, label: 'This Week' },
@@ -77,7 +81,15 @@ export default function EarningsScreen() {
     };
 
     return (
-        <ScreenWrapper title="Earnings" subtitle={`Total: ${formatCurrency(earningsSummary.thisMonth)}`}>
+        <ScreenWrapper
+            title="Earnings"
+            subtitle={`Total: ${formatCurrency(earningsSummary.thisMonth)}`}
+            headerRight={
+                <TouchableOpacity style={{ padding: Spacing.sm }} onPress={() => router.push('/(driver)/log-earnings')}>
+                    <Ionicons name="add-circle" size={26} color={Colors.primary} />
+                </TouchableOpacity>
+            }
+        >
             {/* Summary Cards */}
             <View style={styles.summaryRow}>
                 <Card variant="highlighted" style={styles.summaryCard}>
@@ -119,7 +131,7 @@ export default function EarningsScreen() {
 
             {/* Earnings History */}
             <SectionHeader title="Earnings History" action="See All" style={styles.section} />
-            {mockEarnings.map((entry) => (
+            {earnings.map((entry) => (
                 <Card key={entry.id} style={styles.entryCard}>
                     <View style={styles.entryRow}>
                         <View style={styles.entryLeft}>
