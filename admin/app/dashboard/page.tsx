@@ -27,20 +27,57 @@ import {
     ResponsiveContainer,
     Legend,
 } from 'recharts';
-import { mockUsers, registrationTrend, verificationFunnel } from '../data/users';
+import { useState, useEffect } from 'react';
+import { mockUsers, registrationTrend, verificationFunnel, type PlatformUser } from '../data/users';
 import { mockDocumentQueue } from '../data/documents';
 import { mockDisputes } from '../data/disputes';
 import { mockAlerts } from '../data/alerts';
+import { insforge } from '../../lib/insforge';
 
 export default function DashboardPage() {
+    const [users, setUsers] = useState<PlatformUser[]>([]);
+    const [activeJobs, setActiveJobs] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchDashboardData() {
+            try {
+                const [usersRes, jobsRes] = await Promise.all([
+                    insforge.database.from('users').select('*'),
+                    insforge.database.from('jobs').select('id').eq('status', 'open')
+                ]);
+
+                if (usersRes.data) {
+                    const formattedUsers = usersRes.data.map((u: any) => ({
+                        ...u,
+                        role: u.role,
+                        registeredDate: new Date(u.registered_date).toISOString().split('T')[0],
+                        documents: [], // documents not yet live
+                    }));
+                    setUsers(formattedUsers);
+                }
+
+                if (jobsRes.data) {
+                    setActiveJobs(jobsRes.data.length);
+                }
+            } catch (err) {
+                console.error("Failed to load dashboard data", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchDashboardData();
+    }, []);
+
     // Calculate metrics
-    const totalUsers = mockUsers.length;
-    const drivers = mockUsers.filter(u => u.role === 'driver' || u.role === 'dual').length;
-    const owners = mockUsers.filter(u => u.role === 'owner' || u.role === 'dual').length;
+    const totalUsers = users.length;
+    const drivers = users.filter(u => u.role === 'driver' || u.role === 'dual').length;
+    const owners = users.filter(u => u.role === 'owner' || u.role === 'dual').length;
     const pendingDocs = mockDocumentQueue.filter(d => d.status === 'pending').length;
     const openDisputes = mockDisputes.filter(d => d.status !== 'resolved' && d.status !== 'closed').length;
-    const activeJobs = 6; // from mock jobs
-    const newThisWeek = mockUsers.filter(u => u.registeredDate >= '2026-02-22').length;
+    const newThisWeek = users.filter((u: any) => u.registeredDate >= '2026-02-22').length;
+
+    // Fallback to mockUsers for documents since we haven't ported those tables yet
     const expiringDocs = mockUsers.flatMap(u => u.documents).filter(d => {
         if (!d.expiryDate) return false;
         const exp = new Date(d.expiryDate);
@@ -48,6 +85,7 @@ export default function DashboardPage() {
         const diff = (exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
         return diff <= 30 && diff > 0;
     }).length;
+
     const recentAlerts = mockAlerts.filter(a => a.status === 'sent').length;
 
     const metrics = [

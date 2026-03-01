@@ -15,6 +15,8 @@ import {
     ChevronRight,
     Activity,
     Settings,
+    Briefcase,
+    MapPin,
     BarChart as BarChartIcon,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -22,6 +24,8 @@ import { useState } from 'react';
 const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/users', label: 'Users', icon: Users },
+    { href: '/jobs', label: 'Jobs', icon: Briefcase },
+    { href: '/trips', label: 'Trips', icon: MapPin },
     { href: '/documents', label: 'Documents', icon: FileCheck },
     { href: '/alerts', label: 'Alerts', icon: Bell },
     { href: '/disputes', label: 'Disputes', icon: Scale },

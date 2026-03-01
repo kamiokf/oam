@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Card } from '../../components/ui/Card';
@@ -10,10 +10,11 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
-import { useData } from '../../context/DataContext';
+import { insforge } from '../../lib/insforge';
 
 export default function JobsScreen() {
-    const { jobs } = useData();
+    const [jobs, setJobs] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
@@ -47,6 +48,51 @@ export default function JobsScreen() {
             return next;
         });
     };
+
+    useEffect(() => {
+        async function fetchJobs() {
+            setIsLoading(true);
+            try {
+                const [jobsRes, usersRes] = await Promise.all([
+                    insforge.database.from('jobs').select('*').eq('status', 'open'),
+                    insforge.database.from('users').select('id, name, avatar, rating')
+                ]);
+
+                if (jobsRes.error) throw jobsRes.error;
+
+                const usersMap = new Map((usersRes.data || []).map((u: any) => [u.id, u]));
+
+                const formattedJobs = (jobsRes.data || []).map((j: any) => {
+                    const owner = (usersMap.get(j.owner_id) || {}) as any;
+                    return {
+                        id: j.id,
+                        ownerName: owner?.name || 'Unknown',
+                        ownerRating: owner?.rating || 5.0,
+                        ownerAvatar: owner?.avatar || '',
+                        vehicleType: j.vehicle_type,
+                        dailyPay: parseFloat(j.daily_pay) || 0,
+                        schedule: j.schedule,
+                        route: {
+                            from: j.route_from,
+                            to: j.route_to,
+                        },
+                        requirements: j.requirements || [],
+                        applicants: j.applicants,
+                        isSmartMatch: j.is_smart_match,
+                        matchScore: j.match_score,
+                    };
+                });
+
+                setJobs(formattedJobs);
+            } catch (err) {
+                console.error("Failed to load jobs:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        fetchJobs();
+    }, []);
 
     const filters = [
         { id: 'all', label: 'All Jobs' },
@@ -94,8 +140,14 @@ export default function JobsScreen() {
                 ))}
             </View>
 
+            {isLoading && (
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                    <Text style={{ ...Typography.body, color: Colors.textMuted }}>Loading opportunities...</Text>
+                </View>
+            )}
+
             {/* Job Cards */}
-            {filteredJobs.map((job) => (
+            {!isLoading && filteredJobs.map((job) => (
                 <Card key={job.id} variant={job.isSmartMatch ? 'highlighted' : 'default'} style={styles.jobCard}>
                     {job.isSmartMatch && (
                         <View style={styles.smartBadge}>
@@ -139,7 +191,7 @@ export default function JobsScreen() {
                     </View>
 
                     <View style={styles.requirementsList}>
-                        {job.requirements.slice(0, 2).map((req, i) => (
+                        {(job.requirements || []).slice(0, 2).map((req: string, i: number) => (
                             <View key={i} style={styles.requirementChip}>
                                 <Ionicons name="checkmark-circle" size={12} color={Colors.success} />
                                 <Text style={styles.requirementText}>{req}</Text>

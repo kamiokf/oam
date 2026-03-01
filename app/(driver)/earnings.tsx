@@ -9,9 +9,9 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, formatShortDate } from '../../utils/formatting';
-import { earningsSummary, weeklyEarningsData } from '../../data/earnings';
-import { useData } from '../../context/DataContext';
+import { weeklyEarningsData } from '../../data/earnings';
 import { useRouter } from 'expo-router';
+import { insforge } from '../../lib/insforge';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -66,24 +66,70 @@ const chartStyles = StyleSheet.create({
 });
 
 export default function EarningsScreen() {
-    const { earnings } = useData();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'week' | 'month'>('week');
+    const [earnings, setEarnings] = useState<any[]>([]);
+    const [summary, setSummary] = useState({ today: 0, thisMonth: 0, pendingPayments: 0 });
+    const [isLoading, setIsLoading] = useState(true);
+
+    React.useEffect(() => {
+        async function fetchEarnings() {
+            try {
+                const { data, error } = await insforge.database
+                    .from('earnings')
+                    .select('*')
+                    .order('date', { ascending: false });
+
+                if (error) throw error;
+                const earningsData = data || [];
+
+                const formatted = earningsData.map(e => ({
+                    id: e.id,
+                    date: e.date,
+                    amount: parseFloat(e.amount) || 0,
+                    route: { from: e.route_from, to: e.route_to },
+                    vehiclePlate: e.vehicle_plate,
+                    status: e.status,
+                    trips: e.trips,
+                }));
+
+                const todayStr = new Date().toISOString().split('T')[0];
+                let todayTotal = 0;
+                let monthTotal = 0;
+                let pendingTotal = 0;
+
+                formatted.forEach(e => {
+                    monthTotal += e.amount;
+                    if (e.date === todayStr) todayTotal += e.amount;
+                    if (e.status === 'pending' || e.status === 'processing') pendingTotal += e.amount;
+                });
+
+                setSummary({ today: todayTotal, thisMonth: monthTotal, pendingPayments: pendingTotal });
+                setEarnings(formatted);
+            } catch (err) {
+                console.error("Failed to load earnings:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchEarnings();
+    }, []);
+
     const tabs = [
         { id: 'week' as const, label: 'This Week' },
         { id: 'month' as const, label: 'This Month' },
     ];
 
-    const statusConfig = {
-        paid: { variant: 'success' as const, label: 'Paid' },
-        pending: { variant: 'warning' as const, label: 'Pending' },
-        processing: { variant: 'info' as const, label: 'Processing' },
+    const statusConfig: Record<string, { variant: 'success' | 'warning' | 'info', label: string }> = {
+        paid: { variant: 'success', label: 'Paid' },
+        pending: { variant: 'warning', label: 'Pending' },
+        processing: { variant: 'info', label: 'Processing' },
     };
 
     return (
         <ScreenWrapper
             title="Earnings"
-            subtitle={`Total: ${formatCurrency(earningsSummary.thisMonth)}`}
+            subtitle={isLoading ? "Loading..." : `Total: ${formatCurrency(summary.thisMonth)}`}
             headerRight={
                 <TouchableOpacity style={{ padding: Spacing.sm }} onPress={() => router.push('/(driver)/log-earnings')}>
                     <Ionicons name="add-circle" size={26} color={Colors.primary} />
@@ -97,7 +143,7 @@ export default function EarningsScreen() {
                         <Ionicons name="today" size={20} color={Colors.primary} />
                     </View>
                     <Text style={styles.summaryLabel}>Today</Text>
-                    <Text style={styles.summaryValue}>{formatCurrency(earningsSummary.today)}</Text>
+                    <Text style={styles.summaryValue}>{formatCurrency(summary.today)}</Text>
                 </Card>
                 <Card style={styles.summaryCard}>
                     <View style={[styles.summaryIcon, { backgroundColor: Colors.secondaryMuted }]}>
@@ -105,7 +151,7 @@ export default function EarningsScreen() {
                     </View>
                     <Text style={styles.summaryLabel}>Pending</Text>
                     <Text style={[styles.summaryValue, { color: Colors.warning }]}>
-                        {formatCurrency(earningsSummary.pendingPayments)}
+                        {formatCurrency(summary.pendingPayments)}
                     </Text>
                 </Card>
             </View>
@@ -131,7 +177,11 @@ export default function EarningsScreen() {
 
             {/* Earnings History */}
             <SectionHeader title="Earnings History" action="See All" style={styles.section} />
-            {earnings.map((entry) => (
+            {isLoading ? (
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                    <Text style={{ ...Typography.body, color: Colors.textMuted }}>Loading earnings...</Text>
+                </View>
+            ) : earnings.map((entry) => (
                 <Card key={entry.id} style={styles.entryCard}>
                     <View style={styles.entryRow}>
                         <View style={styles.entryLeft}>
@@ -149,8 +199,8 @@ export default function EarningsScreen() {
                         <View style={styles.entryRight}>
                             <Text style={styles.entryAmount}>{formatCurrency(entry.amount)}</Text>
                             <Badge
-                                label={statusConfig[entry.status].label}
-                                variant={statusConfig[entry.status].variant}
+                                label={statusConfig[entry.status]?.label || entry.status}
+                                variant={statusConfig[entry.status]?.variant || 'info'}
                                 size="sm"
                             />
                         </View>

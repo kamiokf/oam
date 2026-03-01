@@ -9,7 +9,7 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
-import { mockTrips, getTripStats } from '../../data/trips';
+import { insforge } from '../../lib/insforge';
 
 export default function TripLoggerScreen() {
     const [isActive, setIsActive] = useState(false);
@@ -44,8 +44,57 @@ export default function TripLoggerScreen() {
         return `${m}:${sec.toString().padStart(2, '0')}`;
     };
 
-    const stats = getTripStats(mockTrips, 'd1');
-    const recentTrips = mockTrips.filter((t) => t.driverId === 'd1').slice(0, 4);
+    const [recentTrips, setRecentTrips] = useState<any[]>([]);
+    const [stats, setStats] = useState({ totalTrips: 0, totalKm: 0, gpsVerifiedPct: 0 });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchTrips() {
+            try {
+                // Fetch recent trips
+                const { data: tripsRes, error } = await insforge.database
+                    .from('trips')
+                    .select('*')
+                    .order('start_time', { ascending: false })
+                    .limit(20);
+
+                if (error) throw error;
+                const tripsData = tripsRes || [];
+
+                // Format for UI
+                const formattedList = tripsData.slice(0, 4).map(t => ({
+                    id: t.id,
+                    route: { from: t.route_from, to: t.route_to },
+                    distanceKm: parseFloat(t.distance_km) || 0,
+                    durationMinutes: t.duration_minutes || 0,
+                    vehiclePlate: t.vehicle_plate,
+                    fare: parseFloat(t.fare) || 0,
+                    gpsVerified: t.gps_verified,
+                    status: t.status,
+                    startLocation: t.start_lat ? { lat: t.start_lat, lng: t.start_lng } : null,
+                    endLocation: t.end_lat ? { lat: t.end_lat, lng: t.end_lng } : null,
+                }));
+                setRecentTrips(formattedList);
+
+                // Compute stats
+                const totalTrips = tripsData.length;
+                const totalKm = tripsData.reduce((sum, t) => sum + (parseFloat(t.distance_km) || 0), 0);
+                const verifiedTrips = tripsData.filter(t => t.gps_verified).length;
+                const gpsVerifiedPct = totalTrips > 0 ? Math.round((verifiedTrips / totalTrips) * 100) : 0;
+
+                setStats({
+                    totalTrips,
+                    totalKm: parseFloat(totalKm.toFixed(1)),
+                    gpsVerifiedPct
+                });
+            } catch (err) {
+                console.error("Failed to load trips:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchTrips();
+    }, []);
 
     return (
         <ScreenWrapper title="Trip Logger" subtitle="GPS-Verified Trips">

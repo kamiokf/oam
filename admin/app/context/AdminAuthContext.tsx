@@ -31,7 +31,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     const [admin, setAdmin] = useState<AdminUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const permissions = admin ? ROLE_PERMISSIONS[admin.role] : null;
 
