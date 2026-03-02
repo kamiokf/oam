@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -50,6 +50,8 @@ export default function RegisterTermsScreen() {
             router.replace('/(auth)/register-welcome');
         } catch (err) {
             // Error is handled/alerted in AuthContext
+            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+            Alert.alert('Registration Failed', errorMessage);
         }
     };
 

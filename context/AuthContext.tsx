@@ -99,6 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     primaryRoutes: dbUser.primary_routes || undefined,
                     yearsOfExperience: dbUser.experience || undefined,
                     numberOfVehicles: dbUser.number_of_vehicles || undefined,
+                    driversLicenceNumber: dbUser.drivers_licence_number || undefined,
+                    routeExperience: dbUser.route_experience || undefined,
+                    availableForHire: dbUser.available_for_hire ?? undefined,
                 };
                 setUser(userObj);
                 setIsNewUser(false);
@@ -148,13 +151,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 primary_routes: data.primaryRoutes || [],
                 experience: data.yearsOfExperience || 0,
                 number_of_vehicles: data.numberOfVehicles || 0,
+                drivers_licence_number: data.driversLicenceNumber || null,
+                route_experience: data.routeExperience || [],
+                available_for_hire: typeof data.availableForHire === 'boolean' ? data.availableForHire : true,
             };
 
             const response = await insforge.database.from('users').insert(dbData).select('*').single();
 
             if (response.error) {
                 console.error('Failed to register user:', response.error);
-                throw new Error('Registration failed');
+                throw new Error(response.error.message || 'Registration failed');
             }
 
             const dbUser = response.data;
@@ -178,6 +184,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 primaryRoutes: dbUser.primary_routes || undefined,
                 yearsOfExperience: dbUser.experience || undefined,
                 numberOfVehicles: dbUser.number_of_vehicles || undefined,
+                driversLicenceNumber: dbUser.drivers_licence_number || undefined,
+                routeExperience: dbUser.route_experience || undefined,
+                availableForHire: dbUser.available_for_hire ?? undefined,
             };
 
             setUser(newUser);
