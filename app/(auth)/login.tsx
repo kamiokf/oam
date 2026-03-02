@@ -18,8 +18,12 @@ export default function LoginScreen() {
 
     const handleContinue = async () => {
         if (phone.length >= 7) {
-            await login(phone);
-            router.push(`/(auth)/verify?role=${role}&phone=${encodeURIComponent('+1 876 ' + phone)}`);
+            // Normalize phone to match database storing format
+            const cleanPhone = phone.replace(/\D/g, '');
+            const formattedPhone = `+1 876 ${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 7)}`;
+
+            await login(formattedPhone);
+            router.push(`/(auth)/verify?role=${role}&phone=${encodeURIComponent(formattedPhone)}`);
         }
     };
 
