@@ -15,38 +15,42 @@ import { TERMS_OF_SERVICE, CODE_OF_CONDUCT, PRIVACY_POLICY_SUMMARY } from '../..
 export default function RegisterTermsScreen() {
     const router = useRouter();
     const { data, updateField, validateStep4 } = useRegistration();
-    const { register } = useAuth();
+    const { register, isLoading } = useAuth();
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const isDriver = data.selectedRole === 'driver';
 
-    const handleComplete = () => {
+    const handleComplete = async () => {
         const stepErrors = validateStep4();
         if (Object.keys(stepErrors).length > 0) {
             setErrors(stepErrors);
             return;
         }
 
-        // Create user from registration data
-        register({
-            name: data.fullName,
-            phone: data.phone,
-            role: data.selectedRole,
-            trn: data.trn,
-            parish: data.parish,
-            businessName: data.businessName || undefined,
-            routeLicenceNumber: data.routeLicenceNumber || undefined,
-            driversLicenceNumber: data.driversLicenceNumber || undefined,
-            licenceClass: data.licenceClass || undefined,
-            tlcNumber: data.tlcNumber || undefined,
-            availableForHire: data.availableForHire,
-            primaryRoutes: data.primaryRoutes,
-            routeExperience: data.routeExperience,
-            yearsOfExperience: data.yearsOfExperience,
-            numberOfVehicles: data.numberOfVehicles,
-        });
+        try {
+            // Create user from registration data
+            await register({
+                name: data.fullName,
+                phone: data.phone,
+                role: data.selectedRole,
+                trn: data.trn,
+                parish: data.parish,
+                businessName: data.businessName || undefined,
+                routeLicenceNumber: data.routeLicenceNumber || undefined,
+                driversLicenceNumber: data.driversLicenceNumber || undefined,
+                licenceClass: data.licenceClass || undefined,
+                tlcNumber: data.tlcNumber || undefined,
+                availableForHire: data.availableForHire,
+                primaryRoutes: data.primaryRoutes,
+                routeExperience: data.routeExperience,
+                yearsOfExperience: data.yearsOfExperience,
+                numberOfVehicles: data.numberOfVehicles,
+            });
 
-        router.replace('/(auth)/register-welcome');
+            router.replace('/(auth)/register-welcome');
+        } catch (err) {
+            // Error is handled/alerted in AuthContext
+        }
     };
 
     return (
@@ -169,7 +173,8 @@ export default function RegisterTermsScreen() {
                     onPress={handleComplete}
                     size="lg"
                     fullWidth
-                    disabled={!data.agreedToTerms || !data.agreedToPrivacy}
+                    loading={isLoading}
+                    disabled={!data.agreedToTerms || !data.agreedToPrivacy || isLoading}
                 />
             </View>
         </KeyboardAvoidingView>

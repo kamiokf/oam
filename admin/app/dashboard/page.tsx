@@ -28,23 +28,24 @@ import {
     Legend,
 } from 'recharts';
 import { useState, useEffect } from 'react';
-import { mockUsers, registrationTrend, verificationFunnel, type PlatformUser } from '../data/users';
-import { mockDocumentQueue } from '../data/documents';
-import { mockDisputes } from '../data/disputes';
-import { mockAlerts } from '../data/alerts';
+import { registrationTrend, verificationFunnel, type PlatformUser } from '../data/users';
 import { insforge } from '../../lib/insforge';
 
 export default function DashboardPage() {
     const [users, setUsers] = useState<PlatformUser[]>([]);
     const [activeJobs, setActiveJobs] = useState(0);
+    const [openDisputes, setOpenDisputes] = useState(0);
+    const [recentAlerts, setRecentAlerts] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         async function fetchDashboardData() {
             try {
-                const [usersRes, jobsRes] = await Promise.all([
+                const [usersRes, jobsRes, disputesRes, alertsRes] = await Promise.all([
                     insforge.database.from('users').select('*'),
-                    insforge.database.from('jobs').select('id').eq('status', 'open')
+                    insforge.database.from('jobs').select('id').eq('status', 'open'),
+                    insforge.database.from('disputes').select('id').not('status', 'in', '("resolved","closed")'),
+                    insforge.database.from('alerts').select('id').eq('status', 'sent')
                 ]);
 
                 if (usersRes.data) {
@@ -57,9 +58,9 @@ export default function DashboardPage() {
                     setUsers(formattedUsers);
                 }
 
-                if (jobsRes.data) {
-                    setActiveJobs(jobsRes.data.length);
-                }
+                if (jobsRes.data) setActiveJobs(jobsRes.data.length);
+                if (disputesRes.data) setOpenDisputes(disputesRes.data.length);
+                if (alertsRes.data) setRecentAlerts(alertsRes.data.length);
             } catch (err) {
                 console.error("Failed to load dashboard data", err);
             } finally {
@@ -73,20 +74,9 @@ export default function DashboardPage() {
     const totalUsers = users.length;
     const drivers = users.filter(u => u.role === 'driver' || u.role === 'dual').length;
     const owners = users.filter(u => u.role === 'owner' || u.role === 'dual').length;
-    const pendingDocs = mockDocumentQueue.filter(d => d.status === 'pending').length;
-    const openDisputes = mockDisputes.filter(d => d.status !== 'resolved' && d.status !== 'closed').length;
+    const pendingDocs = 0; // Temporarily 0 since we haven't ported documents table yet
     const newThisWeek = users.filter((u: any) => u.registeredDate >= '2026-02-22').length;
-
-    // Fallback to mockUsers for documents since we haven't ported those tables yet
-    const expiringDocs = mockUsers.flatMap(u => u.documents).filter(d => {
-        if (!d.expiryDate) return false;
-        const exp = new Date(d.expiryDate);
-        const now = new Date('2026-02-28');
-        const diff = (exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-        return diff <= 30 && diff > 0;
-    }).length;
-
-    const recentAlerts = mockAlerts.filter(a => a.status === 'sent').length;
+    const expiringDocs = 0; // Temporarily 0
 
     const metrics = [
         { label: 'Total Users', value: totalUsers, sub: `${drivers} drivers · ${owners} owners`, icon: Users, color: 'var(--primary)', bg: 'var(--primary-muted)', trend: '+12%', up: true },
@@ -243,32 +233,12 @@ export default function DashboardPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {mockDisputes.slice(0, 4).map(d => (
-                                <tr key={d.id}>
-                                    <td style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.82rem' }}>{d.referenceNumber}</td>
-                                    <td>
-                                        <div className="user-cell">
-                                            <div className="avatar avatar-sm avatar-gold">{d.filedByAvatar}</div>
-                                            <div>
-                                                <div className="user-name">{d.filedByName}</div>
-                                                <div className="user-sub">{d.filedByRole}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="user-cell">
-                                            <div className="avatar avatar-sm avatar-purple">{d.filedAgainstAvatar}</div>
-                                            <div>
-                                                <div className="user-name">{d.filedAgainstName}</div>
-                                                <div className="user-sub">{d.filedAgainstRole}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td style={{ textTransform: 'capitalize' }}>{d.category.replace('_', ' ')}</td>
-                                    <td><StatusBadge status={d.priority} size="sm" /></td>
-                                    <td><StatusBadge status={d.status} size="sm" /></td>
-                                </tr>
-                            ))}
+                            {/* Empty state for recent disputes layout placeholder */}
+                            <tr>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                                    Recent disputes data is loading...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function VerifyScreen() {
     const router = useRouter();
     const params = useLocalSearchParams<{ role: string; phone: string }>();
-    const { verifyOtp, isLoading } = useAuth();
+    const { verifyOtp, isLoading, isNewUser, user } = useAuth();
     const [code, setCode] = useState(['', '', '', '', '', '']);
     const inputRefs = useRef<(TextInput | null)[]>([]);
     const [error, setError] = useState('');
@@ -79,8 +79,13 @@ export default function VerifyScreen() {
         if (fullCode.length === 6) {
             const success = await verifyOtp(fullCode);
             if (success) {
-                // Route to registration (new user flow)
-                router.replace(`/(auth)/register-details?role=${role}&phone=${encodeURIComponent(phone)}`);
+                if (isNewUser) {
+                    // Route to registration (new user flow)
+                    router.replace(`/(auth)/register-details?role=${role}&phone=${encodeURIComponent(phone)}`);
+                } else {
+                    // Existing user
+                    router.replace(user?.role === 'owner' ? '/(owner)' : '/(driver)');
+                }
             } else {
                 const newAttempts = attempts + 1;
                 setAttempts(newAttempts);

@@ -10,10 +10,70 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, formatRelativeDate } from '../../utils/formatting';
-import { mockReferrals, getReferralStats, REFERRAL_BONUSES, REFERRAL_TIERS } from '../../data/referrals';
+import { getReferralStats, REFERRAL_BONUSES, REFERRAL_TIERS, Referral } from '../../data/referrals';
+import { insforge } from '../../lib/insforge';
+import { useAuth } from '../../context/AuthContext';
 
 export default function ReferralsScreen() {
-    const stats = getReferralStats(mockReferrals, 'd1');
+    const { user } = useAuth();
+    const [referrals, setReferrals] = React.useState<Referral[]>([]);
+    const [isLoading, setIsLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        async function fetchReferrals() {
+            if (!user) return;
+            try {
+                const { data, error } = await insforge.database
+                    .from('referrals')
+                    .select(`
+                        id,
+                        referred_by,
+                        referred_user,
+                        type,
+                        status,
+                        bonus_amount,
+                        referral_code,
+                        date_referred,
+                        date_completed,
+                        date_paid,
+                        refUser:referred_user ( name, avatar )
+                    `)
+                    .eq('referred_by', user.id)
+                    .order('date_referred', { ascending: false });
+
+                if (error) throw error;
+
+                const mapped: Referral[] = (data || []).map(r => {
+                    const refUserObj = Array.isArray(r.refUser) ? r.refUser[0] : r.refUser;
+                    return {
+                        id: r.id,
+                        referredBy: r.referred_by,
+                        referredByName: user.name,
+                        referredByAvatar: user.avatar || '',
+                        referredUser: r.referred_user,
+                        referredUserName: refUserObj?.name || 'Unknown',
+                        referredUserAvatar: refUserObj?.avatar || '?',
+                        type: r.type as 'driver' | 'owner',
+                        status: r.status as any,
+                        bonusAmount: Number(r.bonus_amount),
+                        referralCode: r.referral_code,
+                        dateReferred: r.date_referred,
+                        dateCompleted: r.date_completed,
+                        datePaid: r.date_paid,
+                    };
+                });
+
+                setReferrals(mapped);
+            } catch (err) {
+                console.error("Failed to fetch referrals:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchReferrals();
+    }, [user?.id]);
+
+    const stats = getReferralStats(referrals, user?.id || '');
 
     const handleShare = async () => {
         try {
@@ -39,7 +99,7 @@ export default function ReferralsScreen() {
                     <Text style={styles.codeTitle}>Your Referral Code</Text>
                 </View>
                 <View style={styles.codeDisplay}>
-                    <Text style={styles.codeText}>DEVON2026</Text>
+                    <Text style={styles.codeText}>{user?.name ? user.name.split(' ')[0].toUpperCase() + '2026' : 'CODE2026'}</Text>
                 </View>
                 <View style={styles.codeActions}>
                     <TouchableOpacity style={styles.codeBtn} onPress={handleShare}>
@@ -47,7 +107,7 @@ export default function ReferralsScreen() {
                         <Text style={styles.codeBtnText}>Share</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.codeBtn} onPress={() => {
-                        Alert.alert('Code Copied! 📋', 'DEVON2026 has been copied to your clipboard. Share it with friends to earn bonuses!');
+                        Alert.alert('Code Copied! 📋', 'Your referral code has been copied to your clipboard. Share it with friends to earn bonuses!');
                     }}>
                         <Ionicons name="copy" size={18} color={Colors.primary} />
                         <Text style={styles.codeBtnText}>Copy</Text>
@@ -124,7 +184,11 @@ export default function ReferralsScreen() {
 
             {/* Referral History */}
             <SectionHeader title="Referral History" style={styles.section} />
-            {stats.referrals.map((ref) => (
+            {isLoading ? (
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                    <Text style={{ ...Typography.body, color: Colors.textMuted }}>Loading referrals...</Text>
+                </View>
+            ) : stats.referrals.map((ref) => (
                 <Card key={ref.id} style={styles.refCard}>
                     <View style={styles.refRow}>
                         <Avatar initials={ref.referredUserAvatar} size={40} />

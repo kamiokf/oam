@@ -8,24 +8,73 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
-import { mockReviews } from '../../data/reviews';
 import { formatRelativeDate } from '../../utils/formatting';
+import { insforge } from '../../lib/insforge';
 
 export default function ReviewsScreen() {
+    const [reviews, setReviews] = React.useState<any[]>([]);
+    const [isLoading, setIsLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        async function fetchReviews() {
+            try {
+                const { data, error } = await insforge.database
+                    .from('reviews')
+                    .select(`
+                        id,
+                        rating,
+                        comment,
+                        date,
+                        route_from,
+                        route_to,
+                        author:from_id ( name, avatar, role )
+                    `)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                const formatted = (data || []).map(r => {
+                    const author = Array.isArray(r.author) ? r.author[0] : r.author;
+                    return {
+                        id: r.id,
+                        rating: r.rating,
+                        comment: r.comment,
+                        date: r.date,
+                        route: r.route_from ? { from: r.route_from, to: r.route_to } : undefined,
+                        fromName: author?.name || 'Unknown',
+                        fromAvatar: author?.avatar || '?',
+                        fromRole: author?.role || 'driver'
+                    };
+                });
+
+                setReviews(formatted);
+            } catch (err) {
+                console.error("Failed to fetch reviews:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchReviews();
+    }, []);
+
+    const avgRating = reviews.length > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        : 0;
+
     return (
-        <ScreenWrapper title="Reviews" subtitle={`${mockReviews.length} reviews`}>
+        <ScreenWrapper title="Reviews" subtitle={isLoading ? "Loading..." : `${reviews.length} reviews`}>
             {/* Average Rating */}
             <Card variant="highlighted" style={styles.avgCard}>
                 <View style={styles.avgRow}>
                     <View style={styles.avgLeft}>
-                        <Text style={styles.avgValue}>4.8</Text>
-                        <StarRating rating={4.8} size={18} showValue={false} />
-                        <Text style={styles.avgLabel}>Based on {mockReviews.length} reviews</Text>
+                        <Text style={styles.avgValue}>{avgRating.toFixed(1)}</Text>
+                        <StarRating rating={avgRating} size={18} showValue={false} />
+                        <Text style={styles.avgLabel}>Based on {reviews.length} reviews</Text>
                     </View>
                     <View style={styles.avgBreakdown}>
                         {[5, 4, 3, 2, 1].map((star) => {
-                            const count = mockReviews.filter((r) => r.rating === star).length;
-                            const pct = (count / mockReviews.length) * 100;
+                            const count = reviews.filter((r) => r.rating === star).length;
+                            const pct = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
                             return (
                                 <View key={star} style={styles.breakdownRow}>
                                     <Text style={styles.breakdownStar}>{star}</Text>
@@ -41,7 +90,11 @@ export default function ReviewsScreen() {
             </Card>
 
             {/* Review Cards */}
-            {mockReviews.map((review) => (
+            {isLoading ? (
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                    <Text style={{ ...Typography.body, color: Colors.textMuted }}>Loading reviews...</Text>
+                </View>
+            ) : reviews.map((review) => (
                 <Card key={review.id} style={styles.reviewCard}>
                     <View style={styles.reviewHeader}>
                         <Avatar initials={review.fromAvatar} size={40} />

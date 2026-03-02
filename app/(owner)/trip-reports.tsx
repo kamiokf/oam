@@ -9,18 +9,79 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
-import { mockTrips, getTripStats } from '../../data/trips';
+import { getTripStats, Trip } from '../../data/trips';
+import { insforge } from '../../lib/insforge';
+import { useAuth } from '../../context/AuthContext';
 
 export default function TripReportsScreen() {
+    const { user } = useAuth();
     const [period, setPeriod] = useState<'today' | 'week' | 'month'>('week');
-    const allStats = getTripStats(mockTrips);
+    const [trips, setTrips] = useState<Trip[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    React.useEffect(() => {
+        async function fetchTrips() {
+            try {
+                // In a real app, we'd filter trips to only vehicles owned by this user
+                const { data, error } = await insforge.database
+                    .from('trips')
+                    .select('*, driver:driver_id(name)')
+                    .order('start_time', { ascending: false });
+
+                if (error) throw error;
+
+                const mapped: Trip[] = (data || []).map(t => {
+                    const driverObj = Array.isArray(t.driver) ? t.driver[0] : t.driver;
+                    return {
+                        id: t.id,
+                        driverId: t.driver_id,
+                        driverName: driverObj?.name || 'Unknown',
+                        vehicleId: t.vehicle_id || '',
+                        vehiclePlate: t.vehicle_plate,
+                        route: { from: t.route_from, to: t.route_to },
+                        startLocation: { lat: t.start_lat, lng: t.start_lng, accuracy: 0, timestamp: t.start_time },
+                        endLocation: t.end_time ? { lat: t.end_lat, lng: t.end_lng, accuracy: 0, timestamp: t.end_time } : null,
+                        distanceKm: Number(t.distance_km),
+                        startTime: t.start_time,
+                        endTime: t.end_time,
+                        durationMinutes: t.duration_minutes,
+                        fare: Number(t.fare),
+                        status: t.status as 'active' | 'completed' | 'disputed',
+                        gpsVerified: t.gps_verified || false,
+                        waypoints: t.waypoints || [],
+                        fuelEstimate: Number(t.fuel_estimate),
+                        notes: t.notes,
+                    };
+                });
+
+                setTrips(mapped);
+            } catch (err) {
+                console.error("Failed to fetch trips for reports:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchTrips();
+    }, [user?.id]);
+
+    const allStats = getTripStats(trips);
 
     // Group trips by vehicle
-    const vehicleGroups = mockTrips.reduce<Record<string, typeof mockTrips>>((acc, trip) => {
+    const vehicleGroups = trips.reduce<Record<string, Trip[]>>((acc, trip) => {
         if (!acc[trip.vehiclePlate]) acc[trip.vehiclePlate] = [];
         acc[trip.vehiclePlate].push(trip);
         return acc;
     }, {});
+
+    if (isLoading) {
+        return (
+            <ScreenWrapper title="Trip Reports" subtitle="GPS-verified mileage & route data">
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                    <Text style={{ ...Typography.body, color: Colors.textMuted }}>Loading reports...</Text>
+                </View>
+            </ScreenWrapper>
+        );
+    }
 
     return (
         <ScreenWrapper title="Trip Reports" subtitle="GPS-verified mileage & route data">
@@ -103,7 +164,7 @@ export default function TripReportsScreen() {
 
             {/* Trip Log */}
             <SectionHeader title="Trip Log" style={styles.section} />
-            {mockTrips.filter((t) => t.status === 'completed').map((trip) => (
+            {trips.filter((t) => t.status === 'completed').map((trip) => (
                 <View key={trip.id} style={styles.logRow}>
                     <View style={styles.logLeft}>
                         <Text style={styles.logRoute}>{trip.route.from} → {trip.route.to}</Text>

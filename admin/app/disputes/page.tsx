@@ -3,18 +3,80 @@
 import ProtectedLayout from '../components/ProtectedLayout';
 import StatusBadge from '../components/StatusBadge';
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, RotateCcw, MessageSquare, AlertTriangle, ShieldAlert, ArrowUpRight } from 'lucide-react';
-import { mockDisputes, DISPUTE_CATEGORIES } from '../data/disputes';
+import { DISPUTE_CATEGORIES, type Dispute } from '../data/disputes';
+import { insforge } from '../../lib/insforge';
 
 export default function DisputesPage() {
+    const [disputes, setDisputes] = useState<Dispute[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [priorityFilter, setPriorityFilter] = useState('');
 
+    useEffect(() => {
+        fetchDisputes();
+    }, []);
+
+    async function fetchDisputes() {
+        try {
+            setIsLoading(true);
+            const { data, error } = await insforge.database
+                .from('disputes')
+                .select(`
+                    *,
+                    reporter:filed_by(name, role),
+                    respondent:filed_against(name, role)
+                `)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            const mapped: Dispute[] = (data || []).map(d => {
+                const rep = Array.isArray(d.reporter) ? d.reporter[0] : (d.reporter || {});
+                const res = Array.isArray(d.respondent) ? d.respondent[0] : (d.respondent || {});
+                return {
+                    id: d.id,
+                    referenceNumber: d.reference_number,
+                    filedBy: d.filed_by,
+                    filedByName: rep.name || 'Unknown',
+                    filedByAvatar: rep.name ? rep.name.substring(0, 2).toUpperCase() : '??',
+                    filedByRole: rep.role || 'driver',
+                    filedAgainst: d.filed_against,
+                    filedAgainstName: res.name || 'Unknown',
+                    filedAgainstAvatar: res.name ? res.name.substring(0, 2).toUpperCase() : '??',
+                    filedAgainstRole: res.role || 'owner',
+                    category: d.category as any,
+                    description: d.description,
+                    status: d.status as any,
+                    priority: d.priority as any,
+                    assignedTo: d.assigned_to,
+                    assignedToName: null,
+                    evidence: d.evidence || [],
+                    timeline: d.timeline || [],
+                    messages: d.messages || [],
+                    resolutionType: d.resolution_type,
+                    resolutionNotes: d.resolution_notes,
+                    resolvedBy: d.resolved_by,
+                    resolvedAt: d.resolved_at,
+                    appealFiled: d.appeal_filed || false,
+                    relatedJobId: d.related_job_id,
+                    createdAt: d.created_at,
+                    updatedAt: d.updated_at
+                };
+            });
+            setDisputes(mapped);
+        } catch (err) {
+            console.error('Failed to fetch disputes', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
     const filtered = useMemo(() => {
-        let list = [...mockDisputes];
+        let list = [...disputes];
         if (search) {
             const q = search.toLowerCase();
             list = list.filter(d =>
@@ -28,11 +90,11 @@ export default function DisputesPage() {
         if (statusFilter) list = list.filter(d => d.status === statusFilter);
         if (priorityFilter) list = list.filter(d => d.priority === priorityFilter);
         return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }, [search, categoryFilter, statusFilter, priorityFilter]);
+    }, [disputes, search, categoryFilter, statusFilter, priorityFilter]);
 
     // Priority Stats
-    const highPriority = mockDisputes.filter(d => d.priority === 'high' && d.status !== 'resolved' && d.status !== 'closed').length;
-    const requireAction = mockDisputes.filter(d => d.status === 'open' || d.status === 'escalated').length;
+    const highPriority = disputes.filter(d => d.priority === 'high' && d.status !== 'resolved' && d.status !== 'closed').length;
+    const requireAction = disputes.filter(d => d.status === 'open' || d.status === 'escalated').length;
     const avgResolutionDays = 2.4; // Mock stat
 
     return (
@@ -121,7 +183,9 @@ export default function DisputesPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.length === 0 ? (
+                            {isLoading ? (
+                                <tr><td colSpan={8} className="empty-state">Loading disputes...</td></tr>
+                            ) : filtered.length === 0 ? (
                                 <tr><td colSpan={8} className="empty-state">No disputes found</td></tr>
                             ) : filtered.map(d => (
                                 <tr key={d.id}>

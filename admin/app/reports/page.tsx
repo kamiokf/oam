@@ -1,33 +1,92 @@
 'use client';
 
 import ProtectedLayout from '../components/ProtectedLayout';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
     PieChart, Pie, Cell, LineChart, Line, Legend
 } from 'recharts';
 import { Download, Calendar, DollarSign, TrendingUp, Users, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-// Mock Financial Data
-const revenueData = [
-    { month: 'Sep', revenue: 450000, commission: 67500 },
-    { month: 'Oct', revenue: 520000, commission: 78000 },
-    { month: 'Nov', revenue: 480000, commission: 72000 },
-    { month: 'Dec', revenue: 610000, commission: 91500 },
-    { month: 'Jan', revenue: 590000, commission: 88500 },
-    { month: 'Feb', revenue: 650000, commission: 97500 },
-];
-
-const complianceData = [
-    { name: 'Fully Verified', value: 65, color: '#10B981' }, // success
-    { name: 'Missing Documents', value: 20, color: '#F59E0B' }, // warning
-    { name: 'Expiring Soon (< 30d)', value: 10, color: '#6366F1' }, // primary
-    { name: 'Expired/Suspended', value: 5, color: '#EF4444' }, // error
-];
+import { insforge } from '../../lib/insforge';
 
 export default function ReportsPage() {
     const [dateRange, setDateRange] = useState('6M');
+    const [revenueData, setRevenueData] = useState<any[]>([]);
+    const [complianceData, setComplianceData] = useState<any[]>([]);
+    const [totals, setTotals] = useState({ revenue: 0, commission: 0 });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        fetchData();
+    }, [dateRange]);
+
+    async function fetchData() {
+        try {
+            setIsLoading(true);
+
+            // Fetch earnings
+            const { data: earnings, error: eErr } = await insforge.database
+                .from('earnings')
+                .select('*')
+                .order('date', { ascending: true });
+
+            if (eErr) throw eErr;
+
+            // Group earnings by month (simple demo grouping)
+            const revMap: Record<string, { month: string; revenue: number; commission: number }> = {};
+            let totalRev = 0;
+            let totalComm = 0;
+
+            (earnings || []).forEach(e => {
+                const date = new Date(e.date);
+                const monthName = date.toLocaleString('default', { month: 'short' });
+                if (!revMap[monthName]) {
+                    revMap[monthName] = { month: monthName, revenue: 0, commission: 0 };
+                }
+                revMap[monthName].revenue += Number(e.amount);
+                revMap[monthName].commission += Number(e.amount) * 0.15; // 15% commission as defined
+
+                totalRev += Number(e.amount);
+                totalComm += Number(e.amount) * 0.15;
+            });
+
+            let finalRevData = Object.values(revMap);
+            if (finalRevData.length === 0) {
+                // fallback to empty chart
+                finalRevData = [{ month: 'N/A', revenue: 0, commission: 0 }];
+            }
+            setRevenueData(finalRevData);
+            setTotals({ revenue: totalRev, commission: totalComm });
+
+            // Fetch users for compliance
+            const { data: users, error: uErr } = await insforge.database
+                .from('users')
+                .select('verification_tier, status');
+
+            if (uErr) throw uErr;
+
+            let verified = 0, registered = 0, suspended = 0;
+            const totalUsers = users?.length || 1; // avoid / 0
+
+            (users || []).forEach(u => {
+                if (u.status === 'suspended' || u.status === 'banned') suspended++;
+                else if (u.verification_tier === 'verified' || u.verification_tier === 'fully_verified') verified++;
+                else registered++;
+            });
+
+            setComplianceData([
+                { name: 'Fully Verified', value: Math.round((verified / totalUsers) * 100), color: '#10B981' },
+                { name: 'Missing Documents', value: Math.round((registered / totalUsers) * 100), color: '#F59E0B' },
+                { name: 'Expired/Suspended', value: Math.round((suspended / totalUsers) * 100), color: '#EF4444' },
+            ]);
+
+        } catch (err) {
+            console.error('Failed to fetch report data', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }
 
     const handleExport = (type: 'csv' | 'pdf') => {
         toast.success(`Generating ${type.toUpperCase()} report...`);
@@ -63,42 +122,52 @@ export default function ReportsPage() {
                 </div>
 
                 {/* KPI Cards */}
-                <div className="dashboard-grid" style={{ marginBottom: 24 }}>
-                    <div className="card metric-card">
-                        <div className="metric-icon" style={{ background: 'var(--success-muted)', color: 'var(--success)' }}>
-                            <DollarSign size={20} />
+                {isLoading ? (
+                    <div className="empty-state" style={{ padding: 40, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading report data...</div>
+                ) : (
+                    <div className="dashboard-grid" style={{ marginBottom: 24 }}>
+                        <div className="card metric-card">
+                            <div className="metric-icon" style={{ background: 'var(--success-muted)', color: 'var(--success)' }}>
+                                <DollarSign size={20} />
+                            </div>
+                            <div className="metric-content">
+                                <p className="metric-label">Total Platform Revenue ({dateRange})</p>
+                                <h3 className="metric-value">
+                                    {new Intl.NumberFormat('en-JM', { style: 'currency', currency: 'JMD', maximumFractionDigits: 0 }).format(totals.revenue)}
+                                </h3>
+                                <div className="metric-trend positive" style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: '0.8rem', fontWeight: 600 }}>
+                                    <TrendingUp size={14} /> Tracking positive
+                                </div>
+                            </div>
                         </div>
-                        <div className="metric-content">
-                            <p className="metric-label">Total Platform Revenue (6M)</p>
-                            <h3 className="metric-value">J$ 3,300,000</h3>
-                            <div className="metric-trend positive" style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: '0.8rem', fontWeight: 600 }}>
-                                <TrendingUp size={14} /> +12.5% vs previous
+
+                        <div className="card metric-card">
+                            <div className="metric-icon" style={{ background: 'var(--primary-muted)', color: 'var(--primary)' }}>
+                                <DollarSign size={20} />
+                            </div>
+                            <div className="metric-content">
+                                <p className="metric-label">Total Commissions Earned ({dateRange})</p>
+                                <h3 className="metric-value">
+                                    {new Intl.NumberFormat('en-JM', { style: 'currency', currency: 'JMD', maximumFractionDigits: 0 }).format(totals.commission)}
+                                </h3>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>Based on 15% platform fee</p>
+                            </div>
+                        </div>
+
+                        <div className="card metric-card">
+                            <div className="metric-icon" style={{ background: 'var(--warning-muted)', color: 'var(--warning-text)' }}>
+                                <ShieldAlert size={20} />
+                            </div>
+                            <div className="metric-content">
+                                <p className="metric-label">Compliance Risk Score</p>
+                                <h3 className="metric-value" style={{ color: 'var(--warning-text)' }}>Low Risk</h3>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                                    {complianceData.find(c => c.name === 'Fully Verified')?.value || 0}% of active users are fully verified
+                                </p>
                             </div>
                         </div>
                     </div>
-
-                    <div className="card metric-card">
-                        <div className="metric-icon" style={{ background: 'var(--primary-muted)', color: 'var(--primary)' }}>
-                            <DollarSign size={20} />
-                        </div>
-                        <div className="metric-content">
-                            <p className="metric-label">Total Commissions Earned (6M)</p>
-                            <h3 className="metric-value">J$ 495,000</h3>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>Based on 15% platform fee</p>
-                        </div>
-                    </div>
-
-                    <div className="card metric-card">
-                        <div className="metric-icon" style={{ background: 'var(--warning-muted)', color: 'var(--warning-text)' }}>
-                            <ShieldAlert size={20} />
-                        </div>
-                        <div className="metric-content">
-                            <p className="metric-label">Compliance Risk Score</p>
-                            <h3 className="metric-value" style={{ color: 'var(--warning-text)' }}>Low Risk</h3>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>85% of active users are fully verified</p>
-                        </div>
-                    </div>
-                </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
                     {/* Financial Chart */}

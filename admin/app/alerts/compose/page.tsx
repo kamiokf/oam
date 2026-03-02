@@ -4,18 +4,36 @@ import ProtectedLayout from '../../components/ProtectedLayout';
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Send, Eye, Users, FileText, Bell, Zap, Check } from 'lucide-react';
-import { mockUsers } from '../../data/users';
 import type { AlertCategory, AlertPriority } from '../../data/alerts';
+import { useEffect } from 'react';
+import { insforge } from '../../../lib/insforge';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 
 type Step = 1 | 2 | 3 | 4;
 
 export default function ComposeAlertPage() {
+    const { admin } = useAdminAuth();
     const [step, setStep] = useState<Step>(1);
 
     // Step 1 — Targeting
     const [targetType, setTargetType] = useState('individual');
     const [selectedUserId, setSelectedUserId] = useState('');
     const [userSearch, setUserSearch] = useState('');
+    const [allUsers, setAllUsers] = useState<any[]>([]);
+
+    useEffect(() => {
+        async function fetchUsers() {
+            try {
+                const { data, error } = await insforge.database
+                    .from('users')
+                    .select('id, name, phone, avatar, role, verification_tier');
+                if (data && !error) setAllUsers(data);
+            } catch (err) {
+                console.error('Failed to load users for targeting', err);
+            }
+        }
+        fetchUsers();
+    }, []);
 
     // Step 2 — Message
     const [title, setTitle] = useState('');
@@ -30,14 +48,14 @@ export default function ComposeAlertPage() {
 
     const [sent, setSent] = useState(false);
 
-    const selectedUser = mockUsers.find(u => u.id === selectedUserId);
-    const filteredUsers = userSearch ? mockUsers.filter(u => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.phone.includes(userSearch)) : mockUsers.slice(0, 5);
+    const selectedUser = allUsers.find(u => u.id === selectedUserId);
+    const filteredUsers = userSearch ? allUsers.filter(u => u.name.toLowerCase().includes(userSearch.toLowerCase()) || (u.phone && u.phone.includes(userSearch))) : allUsers.slice(0, 5);
 
     const recipientCount = targetType === 'individual' ? (selectedUser ? 1 : 0)
-        : targetType === 'all' ? mockUsers.length
-            : targetType === 'drivers' ? mockUsers.filter(u => u.role === 'driver' || u.role === 'dual').length
-                : targetType === 'owners' ? mockUsers.filter(u => u.role === 'owner' || u.role === 'dual').length
-                    : targetType === 'unverified' ? mockUsers.filter(u => u.verificationTier === 'registered').length
+        : targetType === 'all' ? allUsers.length
+            : targetType === 'drivers' ? allUsers.filter(u => u.role === 'driver' || u.role === 'dual').length
+                : targetType === 'owners' ? allUsers.filter(u => u.role === 'owner' || u.role === 'dual').length
+                    : targetType === 'unverified' ? allUsers.filter(u => u.verification_tier === 'registered').length
                         : targetType === 'expiring' ? 24 // mock arbitrary count
                             : 0;
 
@@ -48,7 +66,37 @@ export default function ComposeAlertPage() {
         return true;
     };
 
-    const handleSend = () => { setSent(true); };
+    const handleSend = async () => {
+        if (!admin) return;
+
+        const newAlert = {
+            title,
+            body_rich: `<p>${body}</p>`,
+            body_plain: body,
+            category,
+            priority,
+            cta_label: ctaLabel || null,
+            cta_destination: ctaDestination || null,
+            targeting_summary: targetType === 'individual' && selectedUser ? `Individual: ${selectedUser.name}` : `Target: ${targetType}`,
+            channels: Object.keys(channels).filter(k => (channels as any)[k]),
+            status: 'sent',
+            recipient_count: recipientCount,
+            created_by: admin.id,
+            sent_at: new Date().toISOString()
+        };
+
+        try {
+            const { error } = await insforge.database
+                .from('alerts')
+                .insert(newAlert);
+
+            if (error) throw error;
+            setSent(true);
+        } catch (err) {
+            console.error('Failed to send alert:', err);
+            alert('Failed to send alert');
+        }
+    };
 
     if (sent) {
         return (

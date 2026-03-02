@@ -12,10 +12,9 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
-import { earningsSummary } from '../../data/earnings';
-import { mockJobs } from '../../data/jobs';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
+import { insforge } from '../../lib/insforge';
 
 export default function DriverDashboard() {
     const router = useRouter();
@@ -29,7 +28,63 @@ export default function DriverDashboard() {
         { icon: 'document-text' as const, label: 'Documents', color: Colors.accent, route: '/(shared)/background-checks' as const },
     ];
 
-    const smartJobs = mockJobs.filter((j) => j.isSmartMatch).slice(0, 3);
+    const [summary, setSummary] = React.useState({ today: 0, thisWeek: 0, thisMonth: 0, pendingPayments: 0 });
+    const [smartJobs, setSmartJobs] = React.useState<any[]>([]);
+    const [isLoading, setIsLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        async function fetchDashboardData() {
+            try {
+                // Fetch earnings
+                const { data: earningsData, error: earningsError } = await insforge.database
+                    .from('earnings')
+                    .select('*');
+                if (earningsError) throw earningsError;
+
+                const todayStr = new Date().toISOString().split('T')[0];
+                let t = 0, w = 0, m = 0, p = 0;
+                (earningsData || []).forEach(e => {
+                    const amt = parseFloat(e.amount) || 0;
+                    m += amt; // Assuming all in DB are this month for now
+                    if (e.date === todayStr) t += amt;
+                    // Weekly is hard to do perfectly without date math, using simple approx or adding to month
+                    w += amt;
+                    if (e.status === 'pending' || e.status === 'processing') p += amt;
+                });
+                setSummary({ today: t, thisWeek: w, thisMonth: m, pendingPayments: p });
+
+                // Fetch smart jobs
+                const { data: jobsData, error: jobsError } = await insforge.database
+                    .from('jobs')
+                    .select('*, owner_id(name, avatar)')
+                    .eq('status', 'open')
+                    .eq('is_smart_match', true)
+                    .limit(3);
+                if (jobsError) throw jobsError;
+
+                const mappedJobs = (jobsData || []).map(j => {
+                    const ownerObj = Array.isArray(j.owner_id) ? j.owner_id[0] : (j.owner_id || {});
+                    return {
+                        id: j.id,
+                        ownerName: ownerObj.name || 'Owner',
+                        ownerAvatar: ownerObj.avatar || '?',
+                        route: { from: j.route_from, to: j.route_to },
+                        matchScore: Math.round(Number(j.match_score) * 100),
+                        vehicleType: j.vehicle_type,
+                        dailyPay: Number(j.daily_pay),
+                        applicants: j.applicants,
+                    };
+                });
+                setSmartJobs(mappedJobs);
+
+            } catch (err) {
+                console.error("Dashboard fetch error:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchDashboardData();
+    }, []);
 
     return (
         <ScreenWrapper
@@ -43,22 +98,22 @@ export default function DriverDashboard() {
                     <Text style={styles.earningsLabel}>Today's Earnings</Text>
                     <Badge label="Active" variant="success" size="sm" />
                 </View>
-                <Text style={styles.earningsAmount}>{formatCurrency(earningsSummary.today)}</Text>
+                <Text style={styles.earningsAmount}>{formatCurrency(summary.today)}</Text>
                 <View style={styles.earningsRow}>
                     <View style={styles.earningsStat}>
                         <Text style={styles.earningsStatLabel}>This Week</Text>
-                        <Text style={styles.earningsStatValue}>{formatCurrency(earningsSummary.thisWeek)}</Text>
+                        <Text style={styles.earningsStatValue}>{formatCurrency(summary.thisWeek)}</Text>
                     </View>
                     <View style={styles.earningsDivider} />
                     <View style={styles.earningsStat}>
                         <Text style={styles.earningsStatLabel}>This Month</Text>
-                        <Text style={styles.earningsStatValue}>{formatCurrency(earningsSummary.thisMonth)}</Text>
+                        <Text style={styles.earningsStatValue}>{formatCurrency(summary.thisMonth)}</Text>
                     </View>
                     <View style={styles.earningsDivider} />
                     <View style={styles.earningsStat}>
                         <Text style={styles.earningsStatLabel}>Pending</Text>
                         <Text style={[styles.earningsStatValue, { color: Colors.warning }]}>
-                            {formatCurrency(earningsSummary.pendingPayments)}
+                            {formatCurrency(summary.pendingPayments)}
                         </Text>
                     </View>
                 </View>

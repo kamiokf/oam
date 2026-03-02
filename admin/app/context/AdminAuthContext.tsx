@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { mockAdminUsers, ADMIN_CREDENTIALS, ROLE_PERMISSIONS, type AdminUser } from '../data/admin-users';
+import { ADMIN_CREDENTIALS, ROLE_PERMISSIONS, type AdminUser } from '../data/admin-users';
+import { insforge } from '../../lib/insforge';
 
 interface AdminAuthContextType {
     admin: AdminUser | null;
@@ -37,25 +38,42 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
     // Check for existing session
     useEffect(() => {
-        const stored = typeof window !== 'undefined' ? localStorage.getItem('admin_session') : null;
-        if (stored) {
-            try {
-                const session = JSON.parse(stored);
-                const now = Date.now();
-                if (session.expiresAt > now) {
-                    const foundAdmin = mockAdminUsers.find(a => a.id === session.adminId);
-                    if (foundAdmin) {
-                        setAdmin(foundAdmin);
-                        setSessionExpiresAt(session.expiresAt);
+        async function checkSession() {
+            const stored = typeof window !== 'undefined' ? localStorage.getItem('admin_session') : null;
+            if (stored) {
+                try {
+                    const session = JSON.parse(stored);
+                    const now = Date.now();
+                    if (session.expiresAt > now) {
+                        const { data: foundAdmin } = await insforge.database
+                            .from('admin_users')
+                            .select('*')
+                            .eq('id', session.adminId)
+                            .single();
+
+                        if (foundAdmin) {
+                            setAdmin({
+                                id: foundAdmin.id,
+                                email: foundAdmin.email,
+                                fullName: foundAdmin.full_name,
+                                role: foundAdmin.role as any,
+                                isActive: foundAdmin.is_active,
+                                lastLogin: foundAdmin.last_login,
+                                createdAt: foundAdmin.created_at,
+                                avatar: foundAdmin.avatar,
+                            });
+                            setSessionExpiresAt(session.expiresAt);
+                        }
+                    } else {
+                        localStorage.removeItem('admin_session');
                     }
-                } else {
+                } catch {
                     localStorage.removeItem('admin_session');
                 }
-            } catch {
-                localStorage.removeItem('admin_session');
             }
+            setIsLoading(false);
         }
-        setIsLoading(false);
+        checkSession();
     }, []);
 
     // Reset session timeout on activity
@@ -110,18 +128,45 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
             return { success: false, error: 'Invalid 2FA code. Enter a 6-digit code.' };
         }
 
-        const foundAdmin = mockAdminUsers.find(a => a.email === email);
-        if (!foundAdmin || !foundAdmin.isActive) {
+        const { data: foundAdmin, error } = await insforge.database
+            .from('admin_users')
+            .select('*')
+            .eq('email', email)
+            .single();
+
+        if (error || !foundAdmin) {
+            setIsLoading(false);
+            return { success: false, error: 'Admin account not found' };
+        }
+
+        if (!foundAdmin.is_active) {
             setIsLoading(false);
             return { success: false, error: 'Account is deactivated' };
         }
 
-        setAdmin(foundAdmin);
+        const mappedAdmin: AdminUser = {
+            id: foundAdmin.id,
+            email: foundAdmin.email,
+            fullName: foundAdmin.full_name,
+            role: foundAdmin.role as any,
+            isActive: foundAdmin.is_active,
+            lastLogin: foundAdmin.last_login,
+            createdAt: foundAdmin.created_at,
+            avatar: foundAdmin.avatar,
+        };
+
+        setAdmin(mappedAdmin);
         const expiresAt = Date.now() + SESSION_TIMEOUT;
         setSessionExpiresAt(expiresAt);
         if (typeof window !== 'undefined') {
             localStorage.setItem('admin_session', JSON.stringify({ adminId: foundAdmin.id, expiresAt }));
         }
+
+        // Update last login
+        await insforge.database
+            .from('admin_users')
+            .update({ last_login: new Date().toISOString() })
+            .eq('id', foundAdmin.id);
 
         setIsLoading(false);
         return { success: true };

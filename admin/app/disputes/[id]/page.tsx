@@ -5,46 +5,122 @@ import ProtectedLayout from '../../components/ProtectedLayout';
 import StatusBadge from '../../components/StatusBadge';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useAdminAuth } from '../../context/AdminAuthContext';
-import { mockDisputes, DISPUTE_CATEGORIES, RESOLUTION_TYPES } from '../../data/disputes';
+import { DISPUTE_CATEGORIES, RESOLUTION_TYPES, type Dispute } from '../../data/disputes';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import {
     ArrowLeft, Paperclip, MessageSquare, Send, Calendar, Briefcase,
     AlertTriangle, CheckCircle, ShieldAlert
 } from 'lucide-react';
+import { insforge } from '../../../lib/insforge';
 
 export default function DisputeDetailPage() {
     const { id } = useParams();
     const { admin } = useAdminAuth();
-    const [dispute, setDispute] = useState(() => mockDisputes.find(d => d.id === id));
-    const [timeline, setTimeline] = useState<any[]>(() => {
-        if (!dispute) return [];
-        const events = dispute.timeline.map((t: any) => ({
-            id: `ev-${t.date}`,
-            datetime: t.date,
-            type: 'status_change',
-            content: `${t.action}: ${t.description}`,
-            senderName: t.actor,
-        }));
-        const msgs = dispute.messages.map((m: any) => ({
-            id: m.id,
-            datetime: m.createdAt,
-            type: 'message',
-            senderId: m.senderId,
-            senderName: m.senderName,
-            senderRole: m.senderType,
-            content: m.message,
-            isInternal: false,
-        }));
-        return [...events, ...msgs].sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime());
-    });
+    const [dispute, setDispute] = useState<Dispute | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [timeline, setTimeline] = useState<any[]>([]);
     const [message, setMessage] = useState('');
     const [resolutionModal, setResolutionModal] = useState<{ open: boolean; type: string; notes: string }>({ open: false, type: '', notes: '' });
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        fetchDispute();
+    }, [id]);
+
+    async function fetchDispute() {
+        if (!id) return;
+        try {
+            setIsLoading(true);
+            const { data, error } = await insforge.database
+                .from('disputes')
+                .select(`
+                    *,
+                    reporter:filed_by(name, role),
+                    respondent:filed_against(name, role)
+                `)
+                .eq('id', id)
+                .single();
+
+            if (error) throw error;
+            if (!data) {
+                setDispute(null);
+                return;
+            }
+
+            const rep = Array.isArray(data.reporter) ? data.reporter[0] : (data.reporter || {});
+            const res = Array.isArray(data.respondent) ? data.respondent[0] : (data.respondent || {});
+            const mappedDispute: Dispute = {
+                id: data.id,
+                referenceNumber: data.reference_number,
+                filedBy: data.filed_by,
+                filedByName: rep.name || 'Unknown',
+                filedByAvatar: rep.name ? rep.name.substring(0, 2).toUpperCase() : '??',
+                filedByRole: rep.role || 'driver',
+                filedAgainst: data.filed_against,
+                filedAgainstName: res.name || 'Unknown',
+                filedAgainstAvatar: res.name ? res.name.substring(0, 2).toUpperCase() : '??',
+                filedAgainstRole: res.role || 'owner',
+                category: data.category as any,
+                description: data.description,
+                status: data.status as any,
+                priority: data.priority as any,
+                assignedTo: data.assigned_to,
+                assignedToName: null,
+                evidence: data.evidence || [],
+                timeline: data.timeline || [],
+                messages: data.messages || [],
+                resolutionType: data.resolution_type,
+                resolutionNotes: data.resolution_notes,
+                resolvedBy: data.resolved_by,
+                resolvedAt: data.resolved_at,
+                appealFiled: data.appeal_filed || false,
+                relatedJobId: data.related_job_id,
+                createdAt: data.created_at,
+                updatedAt: data.updated_at
+            };
+
+            setDispute(mappedDispute);
+
+            const events = mappedDispute.timeline.map((t: any) => ({
+                id: `ev-${t.date}`,
+                datetime: t.date,
+                type: 'status_change',
+                content: `${t.action}: ${t.description}`,
+                senderName: t.actor,
+            }));
+            const msgs = mappedDispute.messages.map((m: any) => ({
+                id: m.id,
+                datetime: m.createdAt,
+                type: 'message',
+                senderId: m.senderId,
+                senderName: m.senderName,
+                senderRole: m.senderType,
+                content: m.message,
+                isInternal: (m as any).isInternal || false,
+            }));
+            setTimeline([...events, ...msgs].sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()));
+
+        } catch (err) {
+            console.error('Failed to fetch dispute:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [timeline]);
+
+    if (isLoading) {
+        return (
+            <ProtectedLayout>
+                <div className="empty-state" style={{ marginTop: 80 }}>
+                    <h3>Loading dispute...</h3>
+                </div>
+            </ProtectedLayout>
+        );
+    }
 
     if (!dispute) {
         return (
@@ -60,51 +136,132 @@ export default function DisputeDetailPage() {
 
     const categoryLabel = DISPUTE_CATEGORIES[dispute.category as keyof typeof DISPUTE_CATEGORIES]?.label || dispute.category;
 
-    const handleSendMessage = () => {
-        if (!message.trim() || !admin) return;
+    const handleSendMessage = async () => {
+        if (!message.trim() || !admin || !dispute) return;
         const newMessage = {
             id: `msg-${Date.now()}`,
-            datetime: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
             senderId: admin.id,
             senderName: admin.fullName,
-            senderRole: 'admin',
-            type: 'message' as const,
-            content: message,
+            senderType: 'admin' as const,
+            message: message,
             isInternal: true, // Mock logic: all admin messages are internal notes for demo purposes
         };
-        setTimeline(prev => [...prev, newMessage]);
-        setMessage('');
+
+        const updatedMessages = [...dispute.messages, newMessage];
+        try {
+            await insforge.database
+                .from('disputes')
+                .update({ messages: updatedMessages, updated_at: new Date().toISOString() })
+                .eq('id', dispute.id);
+
+            setDispute({ ...dispute, messages: updatedMessages });
+            setTimeline(prev => [...prev, {
+                id: newMessage.id,
+                datetime: newMessage.createdAt,
+                senderId: newMessage.senderId,
+                senderName: newMessage.senderName,
+                senderRole: newMessage.senderType,
+                type: 'message' as const,
+                content: newMessage.message,
+                isInternal: newMessage.isInternal,
+            }]);
+            setMessage('');
+        } catch (err) {
+            console.error('Failed to send message:', err);
+            alert('Failed to send message');
+        }
     };
 
-    const handleUpdateStatus = (newStatus: typeof dispute.status) => {
-        if (!admin) return;
-        setDispute(prev => prev ? { ...prev, status: newStatus } : undefined);
-        setTimeline(prev => [...prev, {
-            id: `ev-${Date.now()}`,
-            datetime: new Date().toISOString(),
-            senderId: admin.id,
-            senderName: admin.fullName,
-            senderRole: 'admin',
-            type: 'status_change' as const,
-            content: `Status updated to ${newStatus.replace('_', ' ')}`,
-            isInternal: true,
-        }]);
+    const handleUpdateStatus = async (newStatus: typeof dispute.status) => {
+        if (!admin || !dispute) return;
+
+        const newEvent = {
+            date: new Date().toISOString(),
+            action: 'Status Updated',
+            description: `Status changed to ${newStatus.replace('_', ' ')}`,
+            actor: 'admin' as const
+        };
+
+        const updatedTimeline = [...dispute.timeline, newEvent];
+
+        try {
+            await insforge.database
+                .from('disputes')
+                .update({
+                    status: newStatus,
+                    timeline: updatedTimeline,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', dispute.id);
+
+            setDispute({ ...dispute, status: newStatus, timeline: updatedTimeline });
+            setTimeline(prev => [...prev, {
+                id: `ev-${newEvent.date}`,
+                datetime: newEvent.date,
+                senderId: admin.id,
+                senderName: admin.fullName,
+                senderRole: 'admin',
+                type: 'status_change' as const,
+                content: `${newEvent.action}: ${newEvent.description}`,
+                isInternal: true,
+            }]);
+        } catch (err) {
+            console.error('Failed to update status:', err);
+            alert('Failed to update status');
+        }
     };
 
-    const handleResolve = () => {
-        if (!admin || !resolutionModal.type) return;
-        setDispute(prev => prev ? { ...prev, status: 'resolved', resolutionType: resolutionModal.type as any, resolutionNotes: resolutionModal.notes } : undefined);
-        setTimeline(prev => [...prev, {
-            id: `ev-${Date.now()}`,
-            datetime: new Date().toISOString(),
-            senderId: admin.id,
-            senderName: admin.fullName,
-            senderRole: 'admin',
-            type: 'status_change' as const,
-            content: `Dispute resolved: ${RESOLUTION_TYPES.find(r => r.value === resolutionModal.type)?.label}`,
-            isInternal: true,
-        }]);
-        setResolutionModal({ open: false, type: '', notes: '' });
+    const handleResolve = async () => {
+        if (!admin || !resolutionModal.type || !dispute) return;
+
+        const newEvent = {
+            date: new Date().toISOString(),
+            action: 'Dispute Resolved',
+            description: `Resolved: ${RESOLUTION_TYPES.find(r => r.value === resolutionModal.type)?.label}`,
+            actor: 'admin' as const
+        };
+
+        const updatedTimeline = [...dispute.timeline, newEvent];
+
+        try {
+            await insforge.database
+                .from('disputes')
+                .update({
+                    status: 'resolved',
+                    resolution_type: resolutionModal.type,
+                    resolution_notes: resolutionModal.notes,
+                    resolved_by: admin.id,
+                    resolved_at: new Date().toISOString(),
+                    timeline: updatedTimeline,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', dispute.id);
+
+            setDispute({
+                ...dispute,
+                status: 'resolved',
+                resolutionType: resolutionModal.type as any,
+                resolutionNotes: resolutionModal.notes,
+                resolvedBy: admin.id,
+                resolvedAt: new Date().toISOString(),
+                timeline: updatedTimeline
+            });
+            setTimeline(prev => [...prev, {
+                id: `ev-${newEvent.date}`,
+                datetime: newEvent.date,
+                senderId: admin.id,
+                senderName: admin.fullName,
+                senderRole: 'admin',
+                type: 'status_change' as const,
+                content: `${newEvent.action}: ${newEvent.description}`,
+                isInternal: true,
+            }]);
+            setResolutionModal({ open: false, type: '', notes: '' });
+        } catch (err) {
+            console.error('Failed to resolve dispute:', err);
+            alert('Failed to resolve dispute');
+        }
     };
 
     return (

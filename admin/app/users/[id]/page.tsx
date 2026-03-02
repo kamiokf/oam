@@ -5,9 +5,9 @@ import ProtectedLayout from '../../components/ProtectedLayout';
 import StatusBadge from '../../components/StatusBadge';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useAdminAuth } from '../../context/AdminAuthContext';
-import { mockUsers } from '../../data/users';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { insforge } from '../../../lib/insforge';
 import {
     ArrowLeft, Shield, Phone, Mail, MapPin, Calendar, Star,
     FileText, Clock, MessageSquare, AlertTriangle, Ban, Play,
@@ -21,13 +21,54 @@ export default function UserDetailPage() {
     const { canPerform, admin } = useAdminAuth();
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const [modal, setModal] = useState<{ type: string; open: boolean }>({ type: '', open: false });
-    const [notes, setNotes] = useState<any[]>(() => {
-        const u = mockUsers.find(u => u.id === id);
-        return u?.notes || [];
-    });
+    const [notes, setNotes] = useState<any[]>([]);
     const [newNote, setNewNote] = useState('');
+    const [user, setUser] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const user = mockUsers.find(u => u.id === id);
+    useEffect(() => {
+        async function fetchUser() {
+            try {
+                const { data, error } = await insforge.database
+                    .from('users')
+                    .select('*')
+                    .eq('id', id)
+                    .single();
+
+                if (data && !error) {
+                    setUser({
+                        ...data,
+                        role: data.role,
+                        verificationTier: data.verification_tier,
+                        registeredDate: new Date(data.registered_date).toISOString().split('T')[0],
+                        lastActive: new Date().toISOString().split('T')[0], // Mock for now
+                        documents: [],
+                        notes: [],
+                        statusHistory: [],
+                        rating: 4.8, // Mock for now
+                        totalTrips: data.role === 'driver' || data.role === 'dual' ? 150 : undefined,
+                        numberOfVehicles: data.role === 'owner' || data.role === 'dual' ? 1 : undefined,
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to load user", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchUser();
+    }, [id]);
+
+    if (isLoading) {
+        return (
+            <ProtectedLayout>
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                    Loading user details...
+                </div>
+            </ProtectedLayout>
+        );
+    }
+
     if (!user) {
         return (
             <ProtectedLayout>
@@ -63,7 +104,7 @@ export default function UserDetailPage() {
     ];
 
     const totalDocs = user.documents.length;
-    const approvedDocs = user.documents.filter(d => d.status === 'approved').length;
+    const approvedDocs = user.documents.filter((d: any) => d.status === 'approved').length;
     const completeness = totalDocs > 0 ? Math.round((approvedDocs / Math.max(totalDocs, 3)) * 100) : 0;
 
     return (
@@ -121,7 +162,7 @@ export default function UserDetailPage() {
 
                 {/* Tabs */}
                 <div className="tabs">
-                    {tabs.map(t => {
+                    {tabs.map((t: any) => {
                         const Icon = t.icon;
                         return (
                             <button
@@ -200,7 +241,7 @@ export default function UserDetailPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {user.businessName && <InfoRow label="Business" value={user.businessName} />}
                                     <InfoRow label="Vehicles" value={String(user.numberOfVehicles ?? 0)} />
-                                    {user.primaryRoutes && user.primaryRoutes.map((r, i) => (
+                                    {user.primaryRoutes && user.primaryRoutes.map((r: any, i: number) => (
                                         <InfoRow key={i} label={i === 0 ? 'Routes' : ''} value={r} />
                                     ))}
                                 </div>
@@ -211,7 +252,7 @@ export default function UserDetailPage() {
                             <div className="card" style={{ gridColumn: '1 / -1' }}>
                                 <div className="card-header"><h3>Status History</h3></div>
                                 <div className="timeline">
-                                    {user.statusHistory.map((sh, i) => (
+                                    {user.statusHistory.map((sh: any, i: number) => (
                                         <div key={i} className="timeline-item">
                                             <div className="timeline-date">{sh.changedAt}</div>
                                             <div className="timeline-title">{sh.from} → {sh.to}</div>
@@ -244,7 +285,7 @@ export default function UserDetailPage() {
                             <tbody>
                                 {user.documents.length === 0 ? (
                                     <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No documents uploaded</td></tr>
-                                ) : user.documents.map(doc => (
+                                ) : user.documents.map((doc: any) => (
                                     <tr key={doc.id}>
                                         <td style={{ fontWeight: 600 }}>{doc.type}</td>
                                         <td style={{ color: 'var(--text-secondary)' }}>{doc.uploadDate}</td>
@@ -256,10 +297,10 @@ export default function UserDetailPage() {
                                 ))}
                             </tbody>
                         </table>
-                        {user.documents.some(d => d.rejectionReason) && (
+                        {user.documents.some((d: any) => d.rejectionReason) && (
                             <div style={{ padding: 16, borderTop: '1px solid var(--border)' }}>
                                 <h4 style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 8, color: 'var(--error)' }}>Rejection Notes</h4>
-                                {user.documents.filter(d => d.rejectionReason).map(d => (
+                                {user.documents.filter((d: any) => d.rejectionReason).map((d: any) => (
                                     <div key={d.id} style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
                                         <strong>{d.type}:</strong> {d.rejectionReason}
                                     </div>
@@ -279,7 +320,7 @@ export default function UserDetailPage() {
                                 <div className="timeline-title">Last Active</div>
                                 <div className="timeline-desc">User was last active on the platform</div>
                             </div>
-                            {user.documents.sort((a, b) => b.uploadDate.localeCompare(a.uploadDate)).slice(0, 5).map((doc, i) => (
+                            {user.documents.sort((a: any, b: any) => b.uploadDate.localeCompare(a.uploadDate)).slice(0, 5).map((doc: any, i: number) => (
                                 <div key={i} className={`timeline-item ${doc.status === 'approved' ? 'success' : doc.status === 'rejected' ? 'error' : ''}`}>
                                     <div className="timeline-date">{doc.uploadDate}</div>
                                     <div className="timeline-title">Uploaded {doc.type}</div>
@@ -324,7 +365,7 @@ export default function UserDetailPage() {
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                {allNotes.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(note => (
+                                {allNotes.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt)).map((note: any) => (
                                     <div key={note.id} className="card" style={{ padding: 16 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                                             <span style={{ fontWeight: 600, fontSize: '0.82rem' }}>{note.adminName}</span>

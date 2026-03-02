@@ -3,12 +3,59 @@
 import ProtectedLayout from '../components/ProtectedLayout';
 import StatusBadge from '../components/StatusBadge';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Send, Eye, BarChart3, ChevronRight, ArrowUpRight } from 'lucide-react';
-import { mockAlerts, alertTemplates, type Alert } from '../data/alerts';
+import { alertTemplates, type Alert } from '../data/alerts';
+import { insforge } from '../../lib/insforge';
 
 export default function AlertsPage() {
     const [tab, setTab] = useState<'sent' | 'templates'>('sent');
+    const [alerts, setAlerts] = useState<Alert[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        fetchAlerts();
+    }, []);
+
+    async function fetchAlerts() {
+        try {
+            setIsLoading(true);
+            const { data, error } = await insforge.database
+                .from('alerts')
+                .select('*, admin_users(full_name)')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            const mapped: Alert[] = (data || []).map(a => {
+                const admin = Array.isArray(a.admin_users) ? a.admin_users[0] : (a.admin_users || {});
+                return {
+                    id: a.id,
+                    title: a.title,
+                    bodyRich: a.body_rich,
+                    bodyPlain: a.body_plain,
+                    category: a.category,
+                    priority: a.priority,
+                    ctaLabel: a.cta_label,
+                    ctaDestination: a.cta_destination,
+                    targetingSummary: a.targeting_summary,
+                    channels: a.channels || [],
+                    status: a.status,
+                    recipientCount: a.recipient_count || 0,
+                    createdBy: a.created_by,
+                    createdByName: admin.full_name || 'Admin',
+                    createdAt: a.created_at,
+                    sentAt: a.sent_at,
+                    deliveryStats: a.delivery_stats,
+                };
+            });
+            setAlerts(mapped);
+        } catch (err) {
+            console.error('Failed to fetch alerts:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }
 
     return (
         <ProtectedLayout>
@@ -27,7 +74,7 @@ export default function AlertsPage() {
                 <div className="tabs">
                     <button className={`tab ${tab === 'sent' ? 'active' : ''}`} onClick={() => setTab('sent')}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                            <Send size={14} /> Sent Alerts ({mockAlerts.length})
+                            <Send size={14} /> Sent Alerts ({alerts.length})
                         </span>
                     </button>
                     <button className={`tab ${tab === 'templates' ? 'active' : ''}`} onClick={() => setTab('templates')}>
@@ -39,9 +86,15 @@ export default function AlertsPage() {
 
                 {tab === 'sent' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {mockAlerts.map(alert => (
-                            <AlertCard key={alert.id} alert={alert} />
-                        ))}
+                        {isLoading ? (
+                            <div className="empty-state">Loading alerts...</div>
+                        ) : alerts.length === 0 ? (
+                            <div className="empty-state">No alerts found.</div>
+                        ) : (
+                            alerts.map(alert => (
+                                <AlertCard key={alert.id} alert={alert} />
+                            ))
+                        )}
                     </div>
                 )}
 

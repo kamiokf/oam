@@ -8,21 +8,50 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
+import { insforge } from '../../lib/insforge';
+import { useAuth } from '../../context/AuthContext';
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const currentWeekDates = [24, 25, 26, 27, 28, 1, 2];
 
-const mockSchedule = [
-    { id: 's1', day: 'Mon', date: 24, start: '6:00 AM', end: '6:00 PM', route: 'Kingston → Spanish Town', vehicle: 'CF 1234', hours: 12, status: 'completed' as const },
-    { id: 's2', day: 'Tue', date: 25, start: '6:00 AM', end: '5:30 PM', route: 'Kingston → Spanish Town', vehicle: 'CF 1234', hours: 11.5, status: 'completed' as const },
-    { id: 's3', day: 'Wed', date: 26, start: '6:00 AM', end: '6:00 PM', route: 'Kingston → Spanish Town', vehicle: 'CF 1234', hours: 12, status: 'completed' as const },
-    { id: 's4', day: 'Thu', date: 27, start: '6:00 AM', end: '6:00 PM', route: 'Kingston → Spanish Town', vehicle: 'CF 1234', hours: 12, status: 'active' as const },
-    { id: 's5', day: 'Fri', date: 28, start: '6:00 AM', end: '6:00 PM', route: 'Kingston → Spanish Town', vehicle: 'CF 1234', hours: 12, status: 'upcoming' as const },
-];
-
 export default function ScheduleScreen() {
+    const { user } = useAuth();
     const [selectedDay, setSelectedDay] = useState(27);
-    const totalHours = mockSchedule.reduce((sum, s) => sum + (s.status !== 'upcoming' ? s.hours : 0), 0);
+    const [schedule, setSchedule] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    React.useEffect(() => {
+        async function fetchSchedule() {
+            if (!user) return;
+            try {
+                const { data, error } = await insforge.database
+                    .from('schedules')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('date', { ascending: true });
+
+                if (error) throw error;
+                setSchedule(data || []);
+            } catch (err) {
+                console.error("Failed to fetch schedule:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchSchedule();
+    }, [user?.id]);
+
+    const totalHours = schedule.reduce((sum, s) => sum + (s.status !== 'upcoming' ? s.hours : 0), 0);
+
+    if (isLoading) {
+        return (
+            <ScreenWrapper title="Schedule" subtitle="February 2026">
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                    <Text style={{ ...Typography.body, color: Colors.textMuted }}>Loading schedule...</Text>
+                </View>
+            </ScreenWrapper>
+        );
+    }
 
     return (
         <ScreenWrapper title="Schedule" subtitle="February 2026">
@@ -33,7 +62,7 @@ export default function ScheduleScreen() {
                         const date = currentWeekDates[i];
                         const isSelected = date === selectedDay;
                         const isToday = date === 27;
-                        const schedule = mockSchedule.find((s) => s.date === date);
+                        const daySchedule = schedule.find((s) => s.date === date);
 
                         return (
                             <TouchableOpacity
@@ -49,13 +78,13 @@ export default function ScheduleScreen() {
                                         {date}
                                     </Text>
                                 </View>
-                                {schedule && (
+                                {daySchedule && (
                                     <View
                                         style={[
                                             styles.dotIndicator,
-                                            schedule.status === 'completed' && styles.dotCompleted,
-                                            schedule.status === 'active' && styles.dotActive,
-                                            schedule.status === 'upcoming' && styles.dotUpcoming,
+                                            daySchedule.status === 'completed' && styles.dotCompleted,
+                                            daySchedule.status === 'active' && styles.dotActive,
+                                            daySchedule.status === 'upcoming' && styles.dotUpcoming,
                                         ]}
                                     />
                                 )}
@@ -86,25 +115,25 @@ export default function ScheduleScreen() {
                         <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
                     </View>
                     <Text style={styles.hoursLabel}>Days</Text>
-                    <Text style={styles.hoursValue}>{mockSchedule.filter((s) => s.status !== 'upcoming').length}</Text>
+                    <Text style={styles.hoursValue}>{schedule.filter((s) => s.status !== 'upcoming').length}</Text>
                 </Card>
             </View>
 
             {/* Daily Schedule */}
             <SectionHeader title="Today's Schedule" style={styles.section} />
-            {mockSchedule
+            {schedule
                 .filter((s) => s.date === selectedDay)
                 .map((shift) => (
                     <Card key={shift.id} variant={shift.status === 'active' ? 'highlighted' : 'default'} style={styles.shiftCard}>
                         <View style={styles.shiftHeader}>
                             <View style={styles.shiftTimeCol}>
-                                <Text style={styles.shiftTime}>{shift.start}</Text>
+                                <Text style={styles.shiftTime}>{shift.start_time || shift.start}</Text>
                                 <View style={styles.timeLine}>
                                     <View style={[styles.timeLineDot, { backgroundColor: Colors.primary }]} />
                                     <View style={styles.timeLineBar} />
                                     <View style={[styles.timeLineDot, { backgroundColor: Colors.accent }]} />
                                 </View>
-                                <Text style={styles.shiftTime}>{shift.end}</Text>
+                                <Text style={styles.shiftTime}>{shift.end_time || shift.end}</Text>
                             </View>
                             <View style={styles.shiftInfo}>
                                 <Text style={styles.shiftRoute}>{shift.route}</Text>
@@ -128,7 +157,7 @@ export default function ScheduleScreen() {
 
             {/* All shifts this week */}
             <SectionHeader title="This Week" style={styles.section} />
-            {mockSchedule.map((shift) => (
+            {schedule.map((shift) => (
                 <TouchableOpacity key={shift.id} style={styles.weekShift} onPress={() => setSelectedDay(shift.date)}>
                     <View style={[styles.weekDayBadge, shift.date === selectedDay && styles.weekDayBadgeActive]}>
                         <Text style={[styles.weekDayText, shift.date === selectedDay && styles.weekDayTextActive]}>
@@ -137,7 +166,7 @@ export default function ScheduleScreen() {
                     </View>
                     <View style={styles.weekShiftInfo}>
                         <Text style={styles.weekShiftRoute}>{shift.route}</Text>
-                        <Text style={styles.weekShiftTime}>{shift.start} - {shift.end}</Text>
+                        <Text style={styles.weekShiftTime}>{shift.start_time || shift.start} - {shift.end_time || shift.end}</Text>
                     </View>
                     <Badge
                         label={shift.status === 'completed' ? 'Done' : shift.status === 'active' ? 'Now' : 'Soon'}

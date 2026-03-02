@@ -4,12 +4,14 @@ import ProtectedLayout from '../components/ProtectedLayout';
 import StatusBadge from '../components/StatusBadge';
 import ConfirmModal from '../components/ConfirmModal';
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Clock, CheckCircle, XCircle, RotateCcw, Flag, SkipForward, FileText, User } from 'lucide-react';
-import { mockDocumentQueue, REJECTION_REASONS, type DocumentQueueItem } from '../data/documents';
+import { REJECTION_REASONS, type DocumentQueueItem } from '../data/documents';
+import { insforge } from '../../lib/insforge';
 
 export default function DocumentsPage() {
-    const [queue, setQueue] = useState(mockDocumentQueue);
+    const [queue, setQueue] = useState<DocumentQueueItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
     const [priorityFilter, setPriorityFilter] = useState('');
@@ -18,6 +20,49 @@ export default function DocumentsPage() {
     const [reviewModal, setReviewModal] = useState<{ action: string; open: boolean }>({ action: '', open: false });
     const [rejectionReason, setRejectionReason] = useState('');
     const [rejectionNote, setRejectionNote] = useState('');
+
+    useEffect(() => {
+        fetchDocuments();
+    }, []);
+
+    async function fetchDocuments() {
+        try {
+            setIsLoading(true);
+            const { data, error } = await insforge.database
+                .from('user_documents')
+                .select('*, user:user_id(name, role), admin:assigned_to(full_name)')
+                .order('upload_date', { ascending: false });
+
+            if (error) throw error;
+
+            const mapped: DocumentQueueItem[] = (data || []).map(d => {
+                const userObj = Array.isArray(d.user) ? d.user[0] : (d.user || {});
+                const adminObj = Array.isArray(d.admin) ? d.admin[0] : (d.admin || {});
+                const uName = userObj.name || 'Unknown';
+                return {
+                    id: d.id,
+                    userId: d.user_id,
+                    userName: uName,
+                    userAvatar: uName.substring(0, 2).toUpperCase(),
+                    userRole: userObj.role || 'driver',
+                    documentType: d.type,
+                    uploadDate: d.upload_date,
+                    status: d.status,
+                    priority: d.priority,
+                    assignedTo: d.assigned_to,
+                    assignedToName: adminObj.full_name || null,
+                    expiryDate: d.expiry_date,
+                    rejectionReason: d.rejection_reason,
+                    fileType: d.file_type || 'image/jpeg'
+                };
+            });
+            setQueue(mapped);
+        } catch (err) {
+            console.error('Failed to fetch documents:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }
 
     const filtered = useMemo(() => {
         let docs = [...queue];
@@ -31,21 +76,31 @@ export default function DocumentsPage() {
         return docs;
     }, [queue, search, typeFilter, priorityFilter, statusFilter]);
 
-    const handleReview = (action: string, reason?: string) => {
+    const handleReview = async (action: string, reason?: string) => {
         if (!selectedDoc) return;
-        setQueue(prev => prev.map(d =>
-            d.id === selectedDoc.id
-                ? {
-                    ...d,
-                    status: action === 'approve' ? 'approved' as const
-                        : action === 'reject' ? 'rejected' as const
-                            : action === 'reupload' ? 'reupload_requested' as const
-                                : action === 'flag' ? 'flagged' as const
-                                    : d.status,
-                    rejectionReason: action === 'reject' ? (rejectionReason + (rejectionNote ? ` — ${rejectionNote}` : '')) : d.rejectionReason,
-                }
-                : d
-        ));
+
+        const newStatus = action === 'approve' ? 'approved'
+            : action === 'reject' ? 'rejected'
+                : action === 'reupload' ? 'reupload_requested'
+                    : action === 'flag' ? 'flagged'
+                        : selectedDoc.status;
+
+        const newReason = action === 'reject' ? (rejectionReason + (rejectionNote ? ` — ${rejectionNote}` : '')) : selectedDoc.rejectionReason;
+
+        try {
+            const { error } = await insforge.database
+                .from('user_documents')
+                .update({ status: newStatus, rejection_reason: newReason })
+                .eq('id', selectedDoc.id);
+
+            if (error) throw error;
+
+            setQueue(prev => prev.map(d => d.id === selectedDoc.id ? { ...d, status: newStatus as any, rejectionReason: newReason } : d));
+        } catch (err) {
+            console.error('Failed to update document status:', err);
+            alert('Failed to update document status');
+        }
+
         setSelectedDoc(null);
         setReviewModal({ action: '', open: false });
         setRejectionReason('');
@@ -62,7 +117,7 @@ export default function DocumentsPage() {
         return { text: `${days}d`, color: 'var(--error)' };
     };
 
-    const docTypes = [...new Set(mockDocumentQueue.map(d => d.documentType))];
+    const docTypes = [...new Set(queue.map(d => d.documentType))];
 
     return (
         <ProtectedLayout>
@@ -241,7 +296,9 @@ export default function DocumentsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.length === 0 ? (
+                                {isLoading ? (
+                                    <tr><td colSpan={8} className="empty-state">Loading documents...</td></tr>
+                                ) : filtered.length === 0 ? (
                                     <tr><td colSpan={8} className="empty-state">No documents match your filters</td></tr>
                                 ) : filtered.map(doc => {
                                     const tiq = getTimeInQueue(doc.uploadDate);

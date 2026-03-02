@@ -2,43 +2,75 @@
 
 import ProtectedLayout from '../components/ProtectedLayout';
 import StatusBadge from '../components/StatusBadge';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, Shield, AlertTriangle } from 'lucide-react';
-import { mockAuditLog, mockAdminUsers } from '../data/admin-users';
+import { insforge } from '../../lib/insforge';
 
 export default function AuditLogsPage() {
     const [search, setSearch] = useState('');
     const [actionFilter, setActionFilter] = useState('');
     const [adminFilter, setAdminFilter] = useState('');
+    const [logs, setLogs] = useState<any[]>([]);
+    const [admins, setAdmins] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        fetchLogs();
+    }, []);
+
+    async function fetchLogs() {
+        try {
+            setIsLoading(true);
+            const { data: logData, error: logErr } = await insforge.database
+                .from('audit_logs')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (logErr) throw logErr;
+            setLogs(logData || []);
+
+            const { data: adminData, error: adminErr } = await insforge.database
+                .from('admin_users')
+                .select('id, full_name, avatar');
+
+            if (adminErr) throw adminErr;
+            setAdmins(adminData || []);
+
+        } catch (err) {
+            console.error('Failed to fetch audit logs:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }
 
     const filteredLogs = useMemo(() => {
-        let list = [...mockAuditLog];
+        let list = [...logs];
 
         if (search) {
             const q = search.toLowerCase();
             list = list.filter(l =>
-                l.details.toLowerCase().includes(q) ||
-                l.targetId?.toLowerCase().includes(q) ||
-                l.ipAddress?.toLowerCase().includes(q)
+                l.details?.toLowerCase().includes(q) ||
+                l.target_id?.toLowerCase().includes(q) ||
+                l.ip_address?.toLowerCase().includes(q)
             );
         }
 
         if (actionFilter) {
-            list = list.filter(l => l.actionType === actionFilter);
+            list = list.filter(l => l.action_type === actionFilter);
         }
 
         if (adminFilter) {
-            list = list.filter(l => l.adminUserId === adminFilter);
+            list = list.filter(l => l.admin_user_id === adminFilter);
         }
 
-        return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }, [search, actionFilter, adminFilter]);
+        return list; // Assuming already sorted from Supabase
+    }, [search, actionFilter, adminFilter, logs]);
 
     // Extract unique action types for the filter dropdown
     const actionTypes = useMemo(() => {
-        const types = new Set(mockAuditLog.map(l => l.actionType));
+        const types = new Set(logs.map(l => l.action_type));
         return Array.from(types).sort();
-    }, []);
+    }, [logs]);
 
     const formatActionType = (type: string) => {
         return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -71,8 +103,8 @@ export default function AuditLogsPage() {
                             style={{ width: 180 }}
                         >
                             <option value="">All Admins</option>
-                            {mockAdminUsers.map(admin => (
-                                <option key={admin.id} value={admin.id}>{admin.fullName}</option>
+                            {admins.map(admin => (
+                                <option key={admin.id} value={admin.id}>{admin.full_name}</option>
                             ))}
                         </select>
                         <select
@@ -99,54 +131,63 @@ export default function AuditLogsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredLogs.length === 0 ? (
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={5} className="empty-state">
+                                        Loading audit logs...
+                                    </td>
+                                </tr>
+                            ) : filteredLogs.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="empty-state">
                                         No audit logs found matching your criteria.
                                     </td>
                                 </tr>
                             ) : (
-                                filteredLogs.map(log => (
-                                    <tr key={log.id}>
-                                        <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
-                                            {new Date(log.createdAt).toLocaleString()}
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <div className="avatar avatar-sm avatar-gold">
-                                                    {mockAdminUsers.find(a => a.id === log.adminUserId)?.avatar || 'AD'}
-                                                </div>
-                                                <span style={{ fontWeight: 500 }}>{log.adminName}</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span style={{
-                                                fontSize: '0.75rem',
-                                                fontWeight: 600,
-                                                padding: '4px 8px',
-                                                background: 'var(--surface-elevated)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: 4,
-                                                display: 'inline-block'
-                                            }}>
-                                                {formatActionType(log.actionType)}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div style={{ fontSize: '0.88rem', maxWidth: 400, lineHeight: 1.4 }}>
-                                                {log.details}
-                                                {log.targetId && (
-                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                                                        Target: <span style={{ fontFamily: 'monospace' }}>{log.targetType}:{log.targetId}</span>
+                                filteredLogs.map(log => {
+                                    const admin = admins.find(a => a.id === log.admin_user_id);
+                                    return (
+                                        <tr key={log.id}>
+                                            <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                                                {new Date(log.created_at).toLocaleString()}
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <div className="avatar avatar-sm avatar-gold">
+                                                        {admin?.avatar || 'AD'}
                                                     </div>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                            {log.ipAddress}
-                                        </td>
-                                    </tr>
-                                ))
+                                                    <span style={{ fontWeight: 500 }}>{admin?.full_name || 'Unknown Admin'}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span style={{
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 600,
+                                                    padding: '4px 8px',
+                                                    background: 'var(--surface-elevated)',
+                                                    border: '1px solid var(--border)',
+                                                    borderRadius: 4,
+                                                    display: 'inline-block'
+                                                }}>
+                                                    {formatActionType(log.action_type)}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div style={{ fontSize: '0.88rem', maxWidth: 400, lineHeight: 1.4 }}>
+                                                    {log.details}
+                                                    {log.target_id && (
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                                                            Target: <span style={{ fontFamily: 'monospace' }}>{log.target_type}:{log.target_id}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                {log.ip_address}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

@@ -1,19 +1,21 @@
 'use client';
 
 import ProtectedLayout from '../components/ProtectedLayout';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Save, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { insforge } from '../../lib/insforge';
 
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState<'general' | 'fees' | 'verification' | 'security'>('general');
 
-    // Mock settings state
+    // Settings state
+    const [settingsId, setSettingsId] = useState<string | null>(null);
     const [settings, setSettings] = useState({
         platformName: "One'N'Move",
         supportEmail: 'support@onenmove.jm',
         supportPhone: '+1 (876) 555-0198',
-        commissionRate: 15, // percentage
+        commissionRate: 15,
         minWithdrawal: 5000,
         lateCancelFee: 1500,
         docExpiryWarningDays: 30,
@@ -22,15 +24,90 @@ export default function SettingsPage() {
         sessionTimeoutMinutes: 30,
     });
 
+    useEffect(() => {
+        fetchSettings();
+    }, []);
+
+    const fetchSettings = async () => {
+        try {
+            const { data, error } = await insforge.database
+                .from('platform_settings')
+                .select('*')
+                .limit(1)
+                .single();
+
+            if (error) {
+                // Ignore if no settings exist yet
+                if (error.code !== 'PGRST116') {
+                    console.error('Error fetching settings:', error);
+                }
+                return;
+            }
+
+            if (data) {
+                setSettingsId(data.id);
+                setSettings({
+                    platformName: data.platform_name,
+                    supportEmail: data.support_email,
+                    supportPhone: data.support_phone,
+                    commissionRate: Number(data.commission_rate),
+                    minWithdrawal: Number(data.min_withdrawal),
+                    lateCancelFee: Number(data.late_cancel_fee),
+                    docExpiryWarningDays: data.doc_expiry_warning_days,
+                    autoSuspendExpiringDocs: data.auto_suspend_expiring_docs,
+                    requireAdmin2FA: data.require_admin_2fa,
+                    sessionTimeoutMinutes: data.session_timeout_minutes,
+                });
+            }
+        } catch (err) {
+            console.error('Failed to load settings', err);
+        }
+    };
+
     const [isSaving, setIsSaving] = useState(false);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setIsSaving(true);
-        // Simulate API call
-        setTimeout(() => {
-            setIsSaving(false);
+        try {
+            const payload = {
+                platform_name: settings.platformName,
+                support_email: settings.supportEmail,
+                support_phone: settings.supportPhone,
+                commission_rate: settings.commissionRate,
+                min_withdrawal: settings.minWithdrawal,
+                late_cancel_fee: settings.lateCancelFee,
+                doc_expiry_warning_days: settings.docExpiryWarningDays,
+                auto_suspend_expiring_docs: settings.autoSuspendExpiringDocs,
+                require_admin_2fa: settings.requireAdmin2FA,
+                session_timeout_minutes: settings.sessionTimeoutMinutes,
+                updated_at: new Date().toISOString()
+            };
+
+            let error;
+            if (settingsId) {
+                const { error: err } = await insforge.database
+                    .from('platform_settings')
+                    .update(payload)
+                    .eq('id', settingsId);
+                error = err;
+            } else {
+                const { data, error: err } = await insforge.database
+                    .from('platform_settings')
+                    .insert(payload)
+                    .select('id')
+                    .single();
+                if (data?.id) setSettingsId(data.id);
+                error = err;
+            }
+
+            if (error) throw error;
             toast.success('Settings saved successfully');
-        }, 800);
+        } catch (err) {
+            console.error('Failed to save settings:', err);
+            toast.error('Failed to save settings');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleChange = (field: keyof typeof settings, value: string | number | boolean) => {

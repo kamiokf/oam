@@ -34,9 +34,9 @@ export default function LoginScreen() {
 
             <View style={styles.content}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Enter your{'\n'}phone number</Text>
+                    <Text style={styles.title}>Welcome back{'\n'}or join us</Text>
                     <Text style={styles.subtitle}>
-                        We'll send you a verification code to confirm your identity
+                        Enter your phone number. We'll send a code to log you in or start your registration.
                     </Text>
                 </View>
 

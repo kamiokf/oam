@@ -12,15 +12,75 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatRelativeDate } from '../../utils/formatting';
 import { DISPUTE_TYPES } from '../../data/disputes';
-import { useData } from '../../context/DataContext';
+import { insforge } from '../../lib/insforge';
+import { useAuth } from '../../context/AuthContext';
 
 export default function DisputesScreen() {
-    const { disputes, addDispute } = useData();
+    const { user } = useAuth();
+    const [disputes, setDisputes] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [tab, setTab] = useState<'active' | 'resolved'>('active');
     const [showForm, setShowForm] = useState(false);
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [disputeDesc, setDisputeDesc] = useState('');
     const [againstName, setAgainstName] = useState('');
+
+    React.useEffect(() => {
+        fetchDisputes();
+    }, [user?.id]);
+
+    async function fetchDisputes() {
+        if (!user) return;
+        try {
+            setIsLoading(true);
+            const { data, error } = await insforge.database
+                .from('disputes')
+                .select('*, filed_by:filed_by_id(name, avatar_url, role), filed_against:filed_against_id(name, avatar_url, role)')
+                .or(`filed_by_id.eq.${user.id},filed_against_id.eq.${user.id}`)
+                .order('date_opened', { ascending: false });
+
+            if (error) throw error;
+
+            const mapped = (data || []).map(d => {
+                const fByObj = Array.isArray(d.filed_by) ? d.filed_by[0] : (d.filed_by || {});
+                const fAgObj = Array.isArray(d.filed_against) ? d.filed_against[0] : (d.filed_against || {});
+
+                // Fallback rendering
+                let byName = fByObj.name || 'Me';
+                let byRole = fByObj.role || 'driver';
+                let byAvatar = byName.substring(0, 2).toUpperCase();
+
+                let againstN = fAgObj.name || 'Unknown';
+                // If evidence/timeline contains real againstName we could parse it, but we can't easily.
+
+                return {
+                    id: d.id,
+                    filedById: d.filed_by_id,
+                    filedByName: byName,
+                    filedByAvatar: byAvatar,
+                    filedByRole: byRole,
+                    againstId: d.filed_against_id,
+                    againstName: againstN,
+                    againstAvatar: againstN.substring(0, 2).toUpperCase() || '??',
+                    againstRole: fAgObj.role || 'owner',
+                    type: d.type || 'billing',
+                    category: d.category,
+                    description: d.description,
+                    status: d.status,
+                    priority: d.priority,
+                    evidence: d.evidence || [],
+                    timeline: d.timeline || [],
+                    resolution: d.resolution,
+                    dateOpened: d.date_opened,
+                };
+            });
+            setDisputes(mapped);
+        } catch (err) {
+            console.error('Failed to fetch disputes:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }
 
     const active = disputes.filter((d) => ['open', 'under_review', 'escalated'].includes(d.status));
     const resolved = disputes.filter((d) => ['resolved', 'dismissed'].includes(d.status));
@@ -94,38 +154,45 @@ export default function DisputesScreen() {
                     )}
                     <View style={styles.formActions}>
                         <Button title="Cancel" variant="ghost" size="sm" onPress={() => { setShowForm(false); setSelectedType(null); setDisputeDesc(''); setAgainstName(''); }} />
-                        <Button title="File Dispute" variant="primary" size="sm" onPress={() => {
+                        <Button title="File Dispute" variant="primary" size="sm" onPress={async () => {
                             if (!selectedType) {
                                 Alert.alert('Select Type', 'Please select a dispute type.');
                                 return;
                             }
-                            const typeInfo = DISPUTE_TYPES[selectedType as keyof typeof DISPUTE_TYPES];
-                            const initials = againstName ? againstName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'XX';
-                            addDispute({
-                                filedBy: 'd1',
-                                filedByName: 'Devon Smith',
-                                filedByAvatar: 'DS',
-                                filedByRole: 'driver',
-                                against: 'unknown',
-                                againstName: againstName || 'Unknown',
-                                againstAvatar: initials,
-                                againstRole: 'owner',
-                                type: selectedType as any,
-                                category: typeInfo.label,
-                                description: disputeDesc || `Dispute filed regarding: ${typeInfo.label}`,
-                                status: 'open',
-                                priority: 'medium',
-                                evidence: [],
-                                timeline: [
-                                    { date: new Date().toISOString(), action: 'Dispute Filed', description: `${againstName || 'Unknown'} reported for ${typeInfo.label.toLowerCase()}`, actor: 'reporter' },
-                                ],
-                                dateOpened: new Date().toISOString().split('T')[0],
-                            });
-                            Alert.alert('Dispute Filed ⚖️', `Your ${typeInfo.label} dispute has been submitted and will be reviewed within 24 hours.`);
-                            setShowForm(false);
-                            setSelectedType(null);
-                            setDisputeDesc('');
-                            setAgainstName('');
+                            if (!user) return;
+                            try {
+                                const typeInfo = DISPUTE_TYPES[selectedType as keyof typeof DISPUTE_TYPES];
+                                const timelineEntry = {
+                                    date: new Date().toISOString(),
+                                    action: 'Dispute Filed',
+                                    description: `${againstName || 'Someone'} reported for ${typeInfo.label.toLowerCase()}`,
+                                    actor: 'reporter'
+                                };
+
+                                const { error } = await insforge.database
+                                    .from('disputes')
+                                    .insert({
+                                        filed_by_id: user.id,
+                                        type: selectedType,
+                                        category: typeInfo.label,
+                                        description: disputeDesc ? `[Against: ${againstName}] ${disputeDesc}` : `Dispute against ${againstName} regarding: ${typeInfo.label}`,
+                                        status: 'open',
+                                        priority: 'medium',
+                                        timeline: [timelineEntry],
+                                    });
+
+                                if (error) throw error;
+
+                                Alert.alert('Dispute Filed ⚖️', `Your ${typeInfo.label} dispute has been submitted and will be reviewed within 24 hours.`);
+                                setShowForm(false);
+                                setSelectedType(null);
+                                setDisputeDesc('');
+                                setAgainstName('');
+                                fetchDisputes();
+                            } catch (err) {
+                                console.error("Error filing dispute:", err);
+                                Alert.alert('Error', 'Could not file the dispute.');
+                            }
                         }} />
                     </View>
                 </Card>
@@ -141,11 +208,17 @@ export default function DisputesScreen() {
                 </TouchableOpacity>
             </View>
 
+            {isLoading && (
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                    <Text style={{ ...Typography.body, color: Colors.textMuted }}>Loading disputes...</Text>
+                </View>
+            )}
+
             {/* Dispute Cards */}
-            {displayed.map((dispute) => {
-                const sCfg = statusCfg[dispute.status];
-                const pCfg = priorityCfg[dispute.priority];
-                const typeInfo = DISPUTE_TYPES[dispute.type];
+            {!isLoading && displayed.map((dispute) => {
+                const sCfg = statusCfg[dispute.status] || { color: Colors.textMuted, label: dispute.status };
+                const pCfg = priorityCfg[dispute.priority] || { color: Colors.textMuted };
+                const typeInfo = DISPUTE_TYPES[dispute.type as keyof typeof DISPUTE_TYPES] || { label: dispute.category, icon: 'alert-circle', color: Colors.warning };
 
                 return (
                     <Card key={dispute.id} style={styles.disputeCard}>
