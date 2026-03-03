@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Card } from '../../components/ui/Card';
@@ -9,13 +9,16 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import { showAlert } from '../../utils/alert';
 
 const SCHEDULES = ['Daily', 'Monday - Friday', 'Weekends', 'Flexible'];
-const REQUIREMENTS = ['Valid TLC License', 'Valid PPV License', '3+ years experience', '5+ years experience', 'Clean record', 'Own phone'];
+const REQUIREMENTS = ['Valid PPV License', '3+ years experience', '5+ years experience', 'Clean record', 'Own phone'];
 
 export default function PostJobScreen() {
     const router = useRouter();
     const { addJob, vehicles } = useData();
+    const { user } = useAuth();
 
     const [routeFrom, setRouteFrom] = useState('');
     const [routeTo, setRouteTo] = useState('');
@@ -33,17 +36,17 @@ export default function PostJobScreen() {
         );
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!isValid) {
-            Alert.alert('Missing Fields', 'Please fill in route, pay, and schedule.');
+            showAlert('Missing Fields', 'Please fill in route, pay, and schedule.');
             return;
         }
 
         const vehicle = vehicles.find((v) => v.id === selectedVehicle);
 
-        addJob({
-            ownerId: 'owner1',
-            ownerName: 'You',
+        await addJob({
+            ownerId: user?.id || '00000000-0000-0000-0000-000000000000',
+            ownerName: user?.name || 'You',
             ownerRating: 4.9,
             ownerAvatar: 'YO',
             vehicleType: vehicle ? `${vehicle.make} ${vehicle.model}` : 'Any Vehicle',
@@ -59,129 +62,143 @@ export default function PostJobScreen() {
             isSmartMatch: false,
         });
 
-        Alert.alert('Job Posted! 📋', `Your job listing for ${routeFrom} → ${routeTo} is now live. Drivers can now apply.`, [
+        showAlert('Job Posted! 📋', `Your job listing for ${routeFrom} → ${routeTo} is now live. Drivers can now apply.`, [
             { text: 'OK', onPress: () => router.back() },
         ]);
     };
 
     return (
-        <ScreenWrapper title="Post a Job" subtitle="Create a new job listing for drivers">
-            <Card variant="elevated" style={styles.formCard}>
-                {/* Route */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>Route *</Text>
-                    <View style={styles.routeRow}>
-                        <TextInput
-                            style={[styles.input, styles.routeInput]}
-                            value={routeFrom}
-                            onChangeText={setRouteFrom}
-                            placeholder="From (e.g. Kingston)"
-                            placeholderTextColor={Colors.textMuted}
-                        />
-                        <Ionicons name="arrow-forward" size={18} color={Colors.primary} />
-                        <TextInput
-                            style={[styles.input, styles.routeInput]}
-                            value={routeTo}
-                            onChangeText={setRouteTo}
-                            placeholder="To (e.g. Montego Bay)"
-                            placeholderTextColor={Colors.textMuted}
-                        />
-                    </View>
-                </View>
-
-                {/* Daily Pay */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>Daily Pay (J$) *</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={dailyPay}
-                        onChangeText={setDailyPay}
-                        placeholder="e.g. 8500"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="number-pad"
-                    />
-                </View>
-
-                {/* Vehicle */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>Vehicle</Text>
-                    <View style={styles.typeRow}>
-                        {vehicles.filter((v) => v.status === 'active').map((v) => (
-                            <TouchableOpacity
-                                key={v.id}
-                                style={[styles.typeChip, selectedVehicle === v.id && styles.typeChipActive]}
-                                onPress={() => setSelectedVehicle(v.id)}
-                            >
-                                <Text style={[styles.typeChipText, selectedVehicle === v.id && styles.typeChipTextActive]}>
-                                    {v.plate}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Schedule */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>Schedule *</Text>
-                    <View style={styles.typeRow}>
-                        {SCHEDULES.map((s) => (
-                            <TouchableOpacity
-                                key={s}
-                                style={[styles.typeChip, schedule === s && styles.typeChipActive]}
-                                onPress={() => setSchedule(s)}
-                            >
-                                <Text style={[styles.typeChipText, schedule === s && styles.typeChipTextActive]}>{s}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Requirements */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>Requirements</Text>
-                    <View style={styles.typeRow}>
-                        {REQUIREMENTS.map((req) => (
-                            <TouchableOpacity
-                                key={req}
-                                style={[styles.reqChip, selectedReqs.includes(req) && styles.reqChipActive]}
-                                onPress={() => toggleReq(req)}
-                            >
-                                <Ionicons
-                                    name={selectedReqs.includes(req) ? 'checkmark-circle' : 'add-circle-outline'}
-                                    size={14}
-                                    color={selectedReqs.includes(req) ? '#fff' : Colors.success}
+        <ScreenWrapper title="Post a Job" subtitle="Create a new job listing for drivers" scrollable={false}>
+            <KeyboardAvoidingView
+                style={styles.container}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                <ScrollView
+                    style={styles.container}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <Card variant="elevated" style={styles.formCard}>
+                        {/* Route */}
+                        <View style={styles.field}>
+                            <Text style={styles.label}>Route *</Text>
+                            <View style={styles.routeRow}>
+                                <TextInput
+                                    style={[styles.input, styles.routeInput]}
+                                    value={routeFrom}
+                                    onChangeText={setRouteFrom}
+                                    placeholder="From (e.g. Kingston)"
+                                    placeholderTextColor={Colors.textMuted}
                                 />
-                                <Text style={[styles.reqText, selectedReqs.includes(req) && styles.reqTextActive]}>{req}</Text>
-                            </TouchableOpacity>
-                        ))}
+                                <Ionicons name="arrow-forward" size={18} color={Colors.primary} />
+                                <TextInput
+                                    style={[styles.input, styles.routeInput]}
+                                    value={routeTo}
+                                    onChangeText={setRouteTo}
+                                    placeholder="To (e.g. Montego Bay)"
+                                    placeholderTextColor={Colors.textMuted}
+                                />
+                            </View>
+                        </View>
+
+                        {/* Daily Pay */}
+                        <View style={styles.field}>
+                            <Text style={styles.label}>Daily Pay (J$) *</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={dailyPay}
+                                onChangeText={setDailyPay}
+                                placeholder="e.g. 8500"
+                                placeholderTextColor={Colors.textMuted}
+                                keyboardType="number-pad"
+                            />
+                        </View>
+
+                        {/* Vehicle */}
+                        <View style={styles.field}>
+                            <Text style={styles.label}>Vehicle</Text>
+                            <View style={styles.typeRow}>
+                                {vehicles.filter((v) => v.status === 'active').map((v) => (
+                                    <TouchableOpacity
+                                        key={v.id}
+                                        style={[styles.typeChip, selectedVehicle === v.id && styles.typeChipActive]}
+                                        onPress={() => setSelectedVehicle(v.id)}
+                                    >
+                                        <Text style={[styles.typeChipText, selectedVehicle === v.id && styles.typeChipTextActive]}>
+                                            {v.plate}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Schedule */}
+                        <View style={styles.field}>
+                            <Text style={styles.label}>Schedule *</Text>
+                            <View style={styles.typeRow}>
+                                {SCHEDULES.map((s) => (
+                                    <TouchableOpacity
+                                        key={s}
+                                        style={[styles.typeChip, schedule === s && styles.typeChipActive]}
+                                        onPress={() => setSchedule(s)}
+                                    >
+                                        <Text style={[styles.typeChipText, schedule === s && styles.typeChipTextActive]}>{s}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Requirements */}
+                        <View style={styles.field}>
+                            <Text style={styles.label}>Requirements</Text>
+                            <View style={styles.typeRow}>
+                                {REQUIREMENTS.map((req) => (
+                                    <TouchableOpacity
+                                        key={req}
+                                        style={[styles.reqChip, selectedReqs.includes(req) && styles.reqChipActive]}
+                                        onPress={() => toggleReq(req)}
+                                    >
+                                        <Ionicons
+                                            name={selectedReqs.includes(req) ? 'checkmark-circle' : 'add-circle-outline'}
+                                            size={14}
+                                            color={selectedReqs.includes(req) ? '#fff' : Colors.success}
+                                        />
+                                        <Text style={[styles.reqText, selectedReqs.includes(req) && styles.reqTextActive]}>{req}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Description */}
+                        <View style={styles.field}>
+                            <Text style={styles.label}>Description</Text>
+                            <TextInput
+                                style={[styles.input, styles.textArea]}
+                                value={description}
+                                onChangeText={setDescription}
+                                placeholder="Additional details about the job..."
+                                placeholderTextColor={Colors.textMuted}
+                                multiline
+                                numberOfLines={4}
+                                textAlignVertical="top"
+                            />
+                        </View>
+                    </Card>
+
+                    <View style={styles.actions}>
+                        <Button title="Post Job" variant="primary" fullWidth onPress={handleSubmit} disabled={!isValid} />
+                        <Button title="Cancel" variant="ghost" fullWidth onPress={() => router.back()} />
                     </View>
-                </View>
-
-                {/* Description */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>Description</Text>
-                    <TextInput
-                        style={[styles.input, styles.textArea]}
-                        value={description}
-                        onChangeText={setDescription}
-                        placeholder="Additional details about the job..."
-                        placeholderTextColor={Colors.textMuted}
-                        multiline
-                        numberOfLines={4}
-                        textAlignVertical="top"
-                    />
-                </View>
-            </Card>
-
-            <View style={styles.actions}>
-                <Button title="Post Job" variant="primary" fullWidth onPress={handleSubmit} disabled={!isValid} />
-                <Button title="Cancel" variant="ghost" fullWidth onPress={() => router.back()} />
-            </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </ScreenWrapper>
     );
 }
 
 const styles = StyleSheet.create({
+    container: { flex: 1 },
+    scrollContent: { paddingBottom: Spacing.xl * 2, flexGrow: 1 },
     formCard: { gap: Spacing.lg, marginBottom: Spacing.xl },
     field: { gap: Spacing.xs },
     label: {
@@ -201,7 +218,7 @@ const styles = StyleSheet.create({
         borderColor: Colors.surfaceBorder,
     },
     routeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-    routeInput: { flex: 1 },
+    routeInput: { flex: 1, minWidth: 0 },
     textArea: { minHeight: 100, paddingTop: Spacing.md },
     typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
     typeChip: {

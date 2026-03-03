@@ -47,10 +47,10 @@ export default function OwnerLayout() {
                 }}
             />
             <Tabs.Screen
-                name="analytics"
+                name="jobs"
                 options={{
-                    title: 'Analytics',
-                    tabBarIcon: ({ color }) => <Ionicons name="bar-chart" size={22} color={color} />,
+                    title: 'Jobs',
+                    tabBarIcon: ({ color }) => <Ionicons name="document-text" size={22} color={color} />,
                 }}
             />
             <Tabs.Screen
@@ -79,7 +79,19 @@ export default function OwnerLayout() {
                 }}
             />
             <Tabs.Screen
+                name="edit-vehicle"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
                 name="post-job"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="analytics"
                 options={{
                     href: null,
                 }}

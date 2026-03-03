@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -8,26 +8,45 @@ import { DatePicker } from '../../components/ui/DatePicker';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
-import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../context/DataContext';
 import { showAlert } from '../../utils/alert';
 
 const VEHICLE_TYPES = ['Minibus', 'Bus', 'Car', 'Coaster', 'SUV'];
+const VEHICLE_STATUSES = ['active', 'maintenance', 'inactive'];
 
-export default function AddVehicleScreen() {
+export default function EditVehicleScreen() {
     const router = useRouter();
-    const { addVehicle } = useData();
+    const { id } = useLocalSearchParams();
+    const { vehicles, editVehicle } = useData();
 
     const [make, setMake] = useState('');
     const [model, setModel] = useState('');
     const [year, setYear] = useState('');
     const [plate, setPlate] = useState('');
     const [selectedType, setSelectedType] = useState('');
+    const [selectedStatus, setSelectedStatus] = useState('');
     const [fitnessExpiry, setFitnessExpiry] = useState('');
     const [insuranceExpiry, setInsuranceExpiry] = useState('');
     const [registrationExpiry, setRegistrationExpiry] = useState('');
 
-    const isValid = make && model && year && plate && selectedType;
+    useEffect(() => {
+        const vehicle = vehicles.find(v => v.id === id);
+        if (vehicle) {
+            setMake(vehicle.make);
+            setModel(vehicle.model);
+            setYear(vehicle.year.toString());
+            setPlate(vehicle.plate);
+            setSelectedType(vehicle.type);
+            setSelectedStatus(vehicle.status);
+            setFitnessExpiry(vehicle.fitnessExpiry);
+            setInsuranceExpiry(vehicle.insuranceExpiry);
+            setRegistrationExpiry(vehicle.registrationExpiry || '');
+        } else {
+            router.back();
+        }
+    }, [id, vehicles]);
+
+    const isValid = make && model && year && plate && selectedType && selectedStatus;
 
     const handleSubmit = () => {
         if (!isValid) {
@@ -35,80 +54,46 @@ export default function AddVehicleScreen() {
             return;
         }
 
-        addVehicle({
-            ownerId: 'owner1',
+        editVehicle(id as string, {
             make: make.trim(),
             model: model.trim(),
             year: parseInt(year) || 2024,
             plate: plate.trim().toUpperCase(),
             type: selectedType,
-            status: 'active',
-            dailyRevenue: 0,
+            status: selectedStatus as any,
             fitnessExpiry: fitnessExpiry || '2027-01-01',
             insuranceExpiry: insuranceExpiry || '2027-01-01',
             registrationExpiry: registrationExpiry || '2027-01-01',
         });
 
-        showAlert('Vehicle Added! 🚗', `${make} ${model} (${plate}) has been added to your fleet.`, [
+        showAlert('Vehicle Updated!', `Successfully updated ${make} ${model}.`, [
             { text: 'OK', onPress: () => router.back() },
         ]);
     };
 
     return (
-        <ScreenWrapper title="Add Vehicle" subtitle="Register a new vehicle to your fleet">
+        <ScreenWrapper title="Edit Vehicle" subtitle="Update details for your vehicle">
             <Card variant="elevated" style={styles.formCard}>
-                {/* Make */}
                 <View style={styles.field}>
                     <Text style={styles.label}>Make *</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={make}
-                        onChangeText={setMake}
-                        placeholder="e.g. Toyota"
-                        placeholderTextColor={Colors.textMuted}
-                    />
+                    <TextInput style={styles.input} value={make} onChangeText={setMake} />
                 </View>
 
-                {/* Model */}
                 <View style={styles.field}>
                     <Text style={styles.label}>Model *</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={model}
-                        onChangeText={setModel}
-                        placeholder="e.g. Hiace"
-                        placeholderTextColor={Colors.textMuted}
-                    />
+                    <TextInput style={styles.input} value={model} onChangeText={setModel} />
                 </View>
 
-                {/* Year */}
                 <View style={styles.field}>
                     <Text style={styles.label}>Year *</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={year}
-                        onChangeText={setYear}
-                        placeholder="e.g. 2024"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="number-pad"
-                        maxLength={4}
-                    />
+                    <TextInput style={styles.input} value={year} onChangeText={setYear} keyboardType="number-pad" />
                 </View>
 
-                {/* Plate */}
                 <View style={styles.field}>
                     <Text style={styles.label}>License Plate *</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={plate}
-                        onChangeText={setPlate}
-                        placeholder="e.g. CF 1234"
-                        placeholderTextColor={Colors.textMuted}
-                        autoCapitalize="characters"
-                    />
+                    <TextInput style={styles.input} value={plate} onChangeText={setPlate} autoCapitalize="characters" />
                 </View>
 
-                {/* Type */}
                 <View style={styles.field}>
                     <Text style={styles.label}>Vehicle Type *</Text>
                     <View style={styles.typeRow}>
@@ -126,7 +111,22 @@ export default function AddVehicleScreen() {
                     </View>
                 </View>
 
-                {/* Fitness Expiry */}
+                <View style={styles.field}>
+                    <Text style={styles.label}>Status *</Text>
+                    <View style={styles.typeRow}>
+                        {VEHICLE_STATUSES.map((status) => (
+                            <TouchableOpacity
+                                key={status}
+                                style={[styles.typeChip, selectedStatus === status && styles.typeChipActive]}
+                                onPress={() => setSelectedStatus(status)}
+                            >
+                                <Text style={[styles.typeChipText, selectedStatus === status && styles.typeChipTextActive]}>
+                                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
                 <View style={styles.field}>
                     <Text style={styles.label}>Fitness Expiry Date</Text>
                     <DatePicker
@@ -136,7 +136,6 @@ export default function AddVehicleScreen() {
                     />
                 </View>
 
-                {/* Insurance Expiry */}
                 <View style={styles.field}>
                     <Text style={styles.label}>Insurance Expiry Date</Text>
                     <DatePicker
@@ -146,7 +145,6 @@ export default function AddVehicleScreen() {
                     />
                 </View>
 
-                {/* Registration Expiry */}
                 <View style={styles.field}>
                     <Text style={styles.label}>Registration Expiry Date</Text>
                     <DatePicker
@@ -157,9 +155,8 @@ export default function AddVehicleScreen() {
                 </View>
             </Card>
 
-            {/* Actions */}
             <View style={styles.actions}>
-                <Button title="Add Vehicle" variant="primary" fullWidth onPress={handleSubmit} disabled={!isValid} />
+                <Button title="Save Changes" variant="primary" fullWidth onPress={handleSubmit} disabled={!isValid} />
                 <Button title="Cancel" variant="ghost" fullWidth onPress={() => router.back()} />
             </View>
         </ScreenWrapper>
@@ -167,54 +164,14 @@ export default function AddVehicleScreen() {
 }
 
 const styles = StyleSheet.create({
-    formCard: {
-        gap: Spacing.lg,
-        marginBottom: Spacing.xl,
-    },
-    field: {
-        gap: Spacing.xs,
-    },
-    label: {
-        ...Typography.captionBold,
-        color: Colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    input: {
-        ...Typography.body,
-        color: Colors.textPrimary,
-        backgroundColor: Colors.surfaceLight,
-        borderRadius: BorderRadius.md,
-        paddingVertical: Spacing.md,
-        paddingHorizontal: Spacing.lg,
-        borderWidth: 1,
-        borderColor: Colors.surfaceBorder,
-    },
-    typeRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: Spacing.sm,
-    },
-    typeChip: {
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.lg,
-        borderRadius: BorderRadius.full,
-        backgroundColor: Colors.surfaceLight,
-        borderWidth: 1,
-        borderColor: Colors.surfaceBorder,
-    },
-    typeChipActive: {
-        backgroundColor: Colors.primary,
-        borderColor: Colors.primary,
-    },
-    typeChipText: {
-        ...Typography.captionBold,
-        color: Colors.textMuted,
-    },
-    typeChipTextActive: {
-        color: '#fff',
-    },
-    actions: {
-        gap: Spacing.md,
-    },
+    formCard: { gap: Spacing.lg, marginBottom: Spacing.xl },
+    field: { gap: Spacing.xs },
+    label: { ...Typography.captionBold, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+    input: { ...Typography.body, color: Colors.textPrimary, backgroundColor: Colors.surfaceLight, borderRadius: BorderRadius.md, paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg, borderWidth: 1, borderColor: Colors.surfaceBorder },
+    typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    typeChip: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg, borderRadius: BorderRadius.full, backgroundColor: Colors.surfaceLight, borderWidth: 1, borderColor: Colors.surfaceBorder },
+    typeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    typeChipText: { ...Typography.captionBold, color: Colors.textMuted },
+    typeChipTextActive: { color: '#fff' },
+    actions: { gap: Spacing.md },
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { RoleSwitcher } from '../../components/layout/RoleSwitcher';
@@ -12,12 +12,14 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
-import { mockReviews } from '../../data/reviews';
+import { useData } from '../../context/DataContext';
+import { showAlert } from '../../utils/alert';
 
 export default function DriverProfile() {
     const router = useRouter();
     const { user, logout } = useAuth();
     const { isDualRole } = useRole();
+    const { reviews } = useData();
 
     const menuItems = [
         { icon: 'person-circle' as const, label: 'Personal Information', subtitle: 'Name, phone, email', route: null },
@@ -35,7 +37,7 @@ export default function DriverProfile() {
         if (item.route) {
             router.push(item.route as any);
         } else {
-            Alert.alert(item.label, `${item.subtitle}\n\nEdit your personal details from the Settings screen.`);
+            showAlert(item.label, `${item.subtitle}\n\nEdit your personal details from the Settings screen.`);
         }
     };
 
@@ -98,8 +100,8 @@ export default function DriverProfile() {
             {/* Recent Reviews */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Recent Reviews</Text>
-                {mockReviews
-                    .filter((r) => r.toName === 'Devon Smith')
+                {reviews
+                    .filter((r) => r.toId === user?.id)
                     .slice(0, 2)
                     .map((review) => (
                         <Card key={review.id} style={styles.reviewCard}>

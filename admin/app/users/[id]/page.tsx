@@ -190,7 +190,7 @@ export default function UserDetailPage() {
                                 <InfoRow label="Last Active" value={user.lastActive} />
                                 {user.licenceClass && <InfoRow label="Licence Class" value={user.licenceClass} />}
                                 {user.licenceExpiry && <InfoRow label="Licence Expiry" value={user.licenceExpiry} />}
-                                {user.tlcNumber && <InfoRow label="TLC Number" value={user.tlcNumber} />}
+                                {user.tlcNumber && <InfoRow label="PPV Badge Number" value={user.tlcNumber} />}
                                 {user.businessName && <InfoRow label="Business" value={user.businessName} />}
                                 {user.routeLicenceNumber && <InfoRow label="Route Licence" value={user.routeLicenceNumber} />}
                             </div>

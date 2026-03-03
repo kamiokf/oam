@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Share, Platform } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -13,6 +13,7 @@ import { formatCurrency, formatRelativeDate } from '../../utils/formatting';
 import { getReferralStats, REFERRAL_BONUSES, REFERRAL_TIERS, Referral } from '../../data/referrals';
 import { insforge } from '../../lib/insforge';
 import { useAuth } from '../../context/AuthContext';
+import { showAlert } from '../../utils/alert';
 
 export default function ReferralsScreen() {
     const { user } = useAuth();
@@ -107,7 +108,7 @@ export default function ReferralsScreen() {
                         <Text style={styles.codeBtnText}>Share</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.codeBtn} onPress={() => {
-                        Alert.alert('Code Copied! 📋', 'Your referral code has been copied to your clipboard. Share it with friends to earn bonuses!');
+                        showAlert('Code Copied! 📋', 'Your referral code has been copied to your clipboard. Share it with friends to earn bonuses!');
                     }}>
                         <Ionicons name="copy" size={18} color={Colors.primary} />
                         <Text style={styles.codeBtnText}>Copy</Text>

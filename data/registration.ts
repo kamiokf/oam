@@ -75,7 +75,7 @@ You must be at least 18 years old and hold a valid Jamaican driver's licence or 
 
 6. FOR DRIVERS
 - You must hold a valid driver's licence of the appropriate class
-- You must hold a valid PPV (Public Passenger Vehicle) badge/TLC number
+- You must hold a valid PPV (Public Passenger Vehicle) badge
 - You must maintain a clean driving record
 - You agree to background checks as part of the verification process
 

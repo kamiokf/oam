@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 const checks = [
     { id: 'police', name: 'Police Record', icon: 'shield-checkmark', description: 'Clean criminal record from JCF', status: 'verified', verifiedDate: '2026-01-15', expiryDate: '2027-01-15' },
-    { id: 'license', name: 'License Validation', icon: 'card', description: 'Valid PPV/TLC license from ITA', status: 'verified', verifiedDate: '2026-01-10', expiryDate: '2026-12-01' },
+    { id: 'license', name: 'License Validation', icon: 'card', description: 'Valid PPV license from ITA', status: 'verified', verifiedDate: '2026-01-10', expiryDate: '2026-12-01' },
     { id: 'references', name: 'Reference Checks', icon: 'people', description: 'Two professional references verified', status: 'verified', verifiedDate: '2026-02-01' },
 ];
 

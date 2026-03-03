@@ -137,7 +137,7 @@ export const mockUsers: PlatformUser[] = [
         experience: 10,
         documents: [
             { id: 'doc-7', type: 'Driver Licence', status: 'approved', uploadDate: '2022-01-10', expiryDate: '2026-06-30', reviewedBy: 'Patrick Reid', reviewDate: '2022-01-11' },
-            { id: 'doc-8', type: 'TLC Badge', status: 'approved', uploadDate: '2022-01-10', reviewedBy: 'Patrick Reid', reviewDate: '2022-01-11' },
+            { id: 'doc-8', type: 'PPV Badge', status: 'approved', uploadDate: '2022-01-10', reviewedBy: 'Patrick Reid', reviewDate: '2022-01-11' },
             { id: 'doc-9', type: 'Police Record', status: 'expired', uploadDate: '2022-01-10', expiryDate: '2025-01-10' },
         ],
         notes: [
@@ -164,7 +164,7 @@ export const mockUsers: PlatformUser[] = [
         experience: 2,
         documents: [
             { id: 'doc-10', type: 'Driver Licence', status: 'approved', uploadDate: '2025-06-20', expiryDate: '2026-09-15', reviewedBy: 'Natasha Campbell', reviewDate: '2025-06-21' },
-            { id: 'doc-11', type: 'TLC Badge', status: 'pending', uploadDate: '2025-06-20' },
+            { id: 'doc-11', type: 'PPV Badge', status: 'pending', uploadDate: '2025-06-20' },
             { id: 'doc-12', type: 'Police Record', status: 'rejected', uploadDate: '2025-06-20', rejectionReason: 'Document is blurry or unreadable', reviewedBy: 'Natasha Campbell', reviewDate: '2025-06-21' },
         ],
         notes: [

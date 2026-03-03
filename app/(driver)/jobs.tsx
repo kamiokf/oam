@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -11,8 +11,11 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
 import { insforge } from '../../lib/insforge';
+import { useAuth } from '../../context/AuthContext';
+import { showAlert } from '../../utils/alert';
 
 export default function JobsScreen() {
+    const { user } = useAuth();
     const [jobs, setJobs] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -20,19 +23,28 @@ export default function JobsScreen() {
     const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
     const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
 
-    const handleApply = (jobId: string, ownerName: string) => {
-        Alert.alert(
+    const handleApply = async (jobId: string, ownerId: string, ownerName: string) => {
+        const processApplication = async () => {
+            const { error } = await insforge.database.from('applications').insert({
+                job_id: jobId,
+                driver_id: user?.id,
+                owner_id: ownerId,
+                status: 'pending'
+            });
+            if (!error) {
+                setAppliedJobs((prev) => new Set(prev).add(jobId));
+                showAlert('Application Sent! ✅', 'The owner will review your profile and get back to you.');
+            } else {
+                showAlert('Error', 'Failed to send application. Please try again.');
+            }
+        };
+
+        showAlert(
             'Apply for this position?',
             `You're about to apply to drive for ${ownerName}. They'll be able to see your profile, ratings, and documents.`,
             [
                 { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Apply Now',
-                    onPress: () => {
-                        setAppliedJobs((prev) => new Set(prev).add(jobId));
-                        Alert.alert('Application Sent! ✅', 'The owner will review your profile and get back to you.');
-                    },
-                },
+                { text: 'Apply Now', onPress: processApplication },
             ]
         );
     };
@@ -202,7 +214,7 @@ export default function JobsScreen() {
                     <View style={styles.jobActions}>
                         <Button
                             title={appliedJobs.has(job.id) ? 'Applied ✓' : 'Apply Now'}
-                            onPress={() => handleApply(job.id, job.ownerName)}
+                            onPress={() => handleApply(job.id, job.ownerId, job.ownerName)}
                             size="sm"
                             style={styles.applyBtn}
                             disabled={appliedJobs.has(job.id)}

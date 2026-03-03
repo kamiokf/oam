@@ -127,7 +127,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
                 errors.licenceClass = 'Please select your licence class';
             }
             if (!data.tlcNumber) {
-                errors.tlcNumber = 'TLC/PPV Badge Number is required';
+                errors.tlcNumber = 'PPV Badge Number is required';
             }
             if (data.routeExperience.length === 0) {
                 errors.routeExperience = 'Select at least one route you have experience with';

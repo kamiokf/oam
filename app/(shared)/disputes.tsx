@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -14,6 +14,7 @@ import { formatRelativeDate } from '../../utils/formatting';
 import { DISPUTE_TYPES } from '../../data/disputes';
 import { insforge } from '../../lib/insforge';
 import { useAuth } from '../../context/AuthContext';
+import { showAlert } from '../../utils/alert';
 
 export default function DisputesScreen() {
     const { user } = useAuth();
@@ -156,7 +157,7 @@ export default function DisputesScreen() {
                         <Button title="Cancel" variant="ghost" size="sm" onPress={() => { setShowForm(false); setSelectedType(null); setDisputeDesc(''); setAgainstName(''); }} />
                         <Button title="File Dispute" variant="primary" size="sm" onPress={async () => {
                             if (!selectedType) {
-                                Alert.alert('Select Type', 'Please select a dispute type.');
+                                showAlert('Select Type', 'Please select a dispute type.');
                                 return;
                             }
                             if (!user) return;
@@ -183,7 +184,7 @@ export default function DisputesScreen() {
 
                                 if (error) throw error;
 
-                                Alert.alert('Dispute Filed ⚖️', `Your ${typeInfo.label} dispute has been submitted and will be reviewed within 24 hours.`);
+                                showAlert('Dispute Filed ⚖️', `Your ${typeInfo.label} dispute has been submitted and will be reviewed within 24 hours.`);
                                 setShowForm(false);
                                 setSelectedType(null);
                                 setDisputeDesc('');
@@ -191,7 +192,7 @@ export default function DisputesScreen() {
                                 fetchDisputes();
                             } catch (err) {
                                 console.error("Error filing dispute:", err);
-                                Alert.alert('Error', 'Could not file the dispute.');
+                                showAlert('Error', 'Could not file the dispute.');
                             }
                         }} />
                     </View>

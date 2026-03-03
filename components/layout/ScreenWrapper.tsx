@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: Colors.background,
-        maxWidth: 480,
+        maxWidth: 1024,
         width: '100%',
         alignSelf: 'center',
     },

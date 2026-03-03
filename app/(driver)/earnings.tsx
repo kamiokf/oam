@@ -9,7 +9,7 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, formatShortDate } from '../../utils/formatting';
-import { weeklyEarningsData } from '../../data/earnings';
+
 import { useRouter } from 'expo-router';
 import { insforge } from '../../lib/insforge';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
@@ -18,9 +18,23 @@ const { width: screenWidth } = Dimensions.get('window');
 const chartWidth = screenWidth - 80;
 const chartHeight = 180;
 
-function SimpleBarChart() {
-    const data = weeklyEarningsData;
-    const maxVal = Math.max(...data.values);
+function SimpleBarChart({ earnings }: { earnings: any[] }) {
+    // Compute weekly chart data from the last 7 earnings entries
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const recent = earnings.slice(0, 7).reverse();
+    const values = recent.length > 0
+        ? recent.map(e => (typeof e.amount === 'number' ? e.amount : parseFloat(e.amount) || 0))
+        : [0];
+    const labels = recent.length > 0
+        ? recent.map((e, i) => {
+            try {
+                const d = new Date(e.date);
+                return dayLabels[d.getDay() === 0 ? 6 : d.getDay() - 1] || `D${i + 1}`;
+            } catch { return `D${i + 1}`; }
+        })
+        : ['—'];
+    const data = { labels, values };
+    const maxVal = Math.max(...data.values, 1);
     const barWidth = (chartWidth - (data.labels.length - 1) * 8) / data.labels.length;
 
     return (
@@ -172,7 +186,7 @@ export default function EarningsScreen() {
                         </TouchableOpacity>
                     ))}
                 </View>
-                <SimpleBarChart />
+                <SimpleBarChart earnings={earnings} />
             </Card>
 
             {/* Earnings History */}

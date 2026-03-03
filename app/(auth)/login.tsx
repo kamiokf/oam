@@ -76,6 +76,9 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
     container: {
+        maxWidth: 1024,
+        width: '100%',
+        alignSelf: 'center',
         flex: 1,
         backgroundColor: Colors.background,
         paddingHorizontal: Spacing.xl,

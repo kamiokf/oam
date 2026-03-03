@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function SplashScreen() {
     const router = useRouter();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
     const fadeAnim = React.useRef(new Animated.Value(0)).current;
     const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
 
@@ -29,8 +29,12 @@ export default function SplashScreen() {
         ]).start();
 
         const timeout = setTimeout(() => {
-            if (isAuthenticated) {
-                router.replace('/(driver)');
+            if (isAuthenticated && user) {
+                if (user.role === 'owner') {
+                    router.replace('/(owner)');
+                } else {
+                    router.replace('/(driver)');
+                }
             } else {
                 router.replace('/(auth)/welcome');
             }

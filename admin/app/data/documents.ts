@@ -147,7 +147,7 @@ export const mockDocumentQueue: DocumentQueueItem[] = [
         userName: 'Omar Lewis',
         userAvatar: 'OL',
         userRole: 'driver',
-        documentType: 'TLC Badge',
+        documentType: 'PPV Badge',
         uploadDate: '2025-06-20T08:30:00',
         status: 'pending',
         priority: 'high',

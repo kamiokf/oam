@@ -12,6 +12,7 @@ export interface Vehicle {
     dailyRevenue: number;
     fitnessExpiry: string;
     insuranceExpiry: string;
+    registrationExpiry?: string;
     image?: string;
     route?: { from: string; to: string };
 }

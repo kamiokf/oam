@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -12,11 +12,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, getDaysUntil, getExpiryStatus } from '../../utils/formatting';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'expo-router';
+import { showAlert } from '../../utils/alert';
 
 export default function VehiclesScreen() {
-    const { vehicles } = useData();
+    const { vehicles, deleteVehicle } = useData();
     const router = useRouter();
     const [activeFilter, setActiveFilter] = useState('all');
+
+    const handleDelete = (id: string, make: string, model: string) => {
+        showAlert(
+            'Delete Vehicle',
+            `Are you sure you want to delete ${make} ${model}?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteVehicle(id) }
+            ]
+        );
+    };
 
     const filters = [
         { id: 'all', label: 'All', count: vehicles.length },
@@ -84,6 +96,21 @@ export default function VehiclesScreen() {
                                 <Text style={styles.vehicleMeta}>{vehicle.year} • {vehicle.plate} • {vehicle.type}</Text>
                             </View>
                             <Badge label={statusConfig[vehicle.status].label} variant={statusConfig[vehicle.status].variant} />
+
+                            <View style={styles.actionButtons}>
+                                <TouchableOpacity
+                                    style={styles.actionBtn}
+                                    onPress={() => router.push(`/(owner)/edit-vehicle?id=${vehicle.id}`)}
+                                >
+                                    <Ionicons name="pencil" size={20} color={Colors.textSecondary} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.actionBtn}
+                                    onPress={() => handleDelete(vehicle.id, vehicle.make, vehicle.model)}
+                                >
+                                    <Ionicons name="trash" size={20} color={Colors.error} />
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
                         {/* Details */}
@@ -260,5 +287,15 @@ const styles = StyleSheet.create({
         ...Typography.small,
         color: Colors.textSecondary,
         fontWeight: '600',
+    },
+    actionButtons: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+        marginLeft: Spacing.sm,
+    },
+    actionBtn: {
+        padding: Spacing.xs,
+        borderRadius: BorderRadius.sm,
+        backgroundColor: Colors.surfaceBorder,
     },
 });

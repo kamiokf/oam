@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { RoleSwitcher } from '../../components/layout/RoleSwitcher';
@@ -12,6 +12,7 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
+import { showAlert } from '../../utils/alert';
 
 export default function OwnerProfile() {
     const router = useRouter();
@@ -39,7 +40,7 @@ export default function OwnerProfile() {
                 'Payment Settings': 'Manage your bank accounts and payment methods for driver payouts.',
                 'Help & Support': 'Need help? Contact us:\n📧 support@onenmove.app\n📞 1-876-555-HELP',
             };
-            Alert.alert(item.label, messages[item.label] || item.subtitle);
+            showAlert(item.label, messages[item.label] || item.subtitle);
         }
     };
 

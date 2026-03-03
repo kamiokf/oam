@@ -94,7 +94,7 @@ export const mockDrivers: Driver[] = [
         rating: 4.9,
         totalTrips: 2100,
         experience: 10,
-        licenseType: 'TLC',
+        licenseType: 'PPV',
         licenseExpiry: '2026-06-30',
         status: 'active',
         assignedVehicle: 'CF 3456',
@@ -104,7 +104,7 @@ export const mockDrivers: Driver[] = [
         verificationStatus: 'verified',
         documents: [
             { name: 'Driver License', status: 'verified' },
-            { name: 'TLC Badge', status: 'verified' },
+            { name: 'PPV Badge', status: 'verified' },
             { name: 'Police Record', status: 'expired' },
         ],
         routeHistory: [
@@ -126,7 +126,7 @@ export const mockDrivers: Driver[] = [
         rating: 4.2,
         totalTrips: 450,
         experience: 2,
-        licenseType: 'TLC',
+        licenseType: 'PPV',
         licenseExpiry: '2026-09-15',
         status: 'inactive',
         weeklyEarnings: 0,
@@ -134,7 +134,7 @@ export const mockDrivers: Driver[] = [
         verificationStatus: 'pending',
         documents: [
             { name: 'Driver License', status: 'verified' },
-            { name: 'TLC Badge', status: 'pending' },
+            { name: 'PPV Badge', status: 'pending' },
             { name: 'Police Record', status: 'verified' },
         ],
         routeHistory: [

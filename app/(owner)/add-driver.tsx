@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Card } from '../../components/ui/Card';
@@ -9,8 +9,9 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../context/DataContext';
+import { showAlert } from '../../utils/alert';
 
-const LICENSE_TYPES = ['PPV', 'TLC', 'General'];
+const LICENSE_TYPES = ['PPV', 'General'];
 
 export default function AddDriverScreen() {
     const router = useRouter();
@@ -23,15 +24,15 @@ export default function AddDriverScreen() {
 
     const isValid = name && phone && licenseType;
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!isValid) {
-            Alert.alert('Missing Fields', 'Please fill in all required fields.');
+            showAlert('Missing Fields', 'Please fill in all required fields.');
             return;
         }
 
         const initials = name.trim().split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
-        addDriver({
+        await addDriver({
             name: name.trim(),
             avatar: initials,
             phone: phone.startsWith('+') ? phone : `+1 876 ${phone}`,
@@ -58,7 +59,7 @@ export default function AddDriverScreen() {
             },
         });
 
-        Alert.alert(
+        showAlert(
             'Driver Invited! 📩',
             `${name} has been added to your fleet as a pending driver. They'll receive an SMS to complete their profile.`,
             [{ text: 'OK', onPress: () => router.back() }]

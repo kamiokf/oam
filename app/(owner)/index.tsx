@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
@@ -11,6 +11,7 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
+import { insforge } from '../../lib/insforge';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
@@ -23,6 +24,31 @@ export default function FleetDashboard() {
     const activeVehicles = vehicles.filter((v) => v.status === 'active');
     const totalRevenue = activeVehicles.reduce((sum, v) => sum + v.dailyRevenue, 0);
     const activeDriverCount = drivers.filter((d) => d.status === 'active').length;
+
+    const [pendingApplications, setPendingApplications] = useState(0);
+
+    useEffect(() => {
+        if (!user) return;
+        const fetchApps = async () => {
+            const { count } = await insforge.database
+                .from('applications')
+                .select('*', { count: 'exact', head: true })
+                .eq('owner_id', user.id)
+                .eq('status', 'pending');
+            setPendingApplications(count || 0);
+        };
+        const interval = setInterval(fetchApps, 15000);
+        fetchApps();
+        return () => clearInterval(interval);
+    }, [user]);
+
+    const getStatusConfig = (status: string) => {
+        switch (status) {
+            case 'active': return { label: 'Active', variant: 'success' };
+            case 'maintenance': return { label: 'Maintenance', variant: 'warning' };
+            default: return { label: 'Inactive', variant: 'neutral' };
+        }
+    };
 
     const stats = [
         { icon: 'car' as const, label: 'Total Vehicles', value: `${vehicles.length}`, color: Colors.primary },
@@ -54,6 +80,25 @@ export default function FleetDashboard() {
                 ))}
             </View>
 
+            {/* Action Required */}
+            {pendingApplications > 0 && (
+                <>
+                    <SectionHeader title="Action Required" style={styles.section} />
+                    <TouchableOpacity onPress={() => router.push('/(owner)/jobs')} activeOpacity={0.8}>
+                        <Card variant="highlighted" style={[styles.alertCard, { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted }] as any}>
+                            <View style={styles.alertRow}>
+                                <Ionicons name="document-text" size={24} color={Colors.primary} />
+                                <View style={styles.alertText}>
+                                    <Text style={[styles.alertTitle, { color: Colors.primary }]}>{pendingApplications} Driver Application(s) Pending</Text>
+                                    <Text style={styles.alertDesc}>Review candidates for your open job listings</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+                            </View>
+                        </Card>
+                    </TouchableOpacity>
+                </>
+            )}
+
             {/* Compliance Alerts */}
             {expiringDocs.length > 0 && (
                 <>
@@ -70,40 +115,43 @@ export default function FleetDashboard() {
                 </>
             )}
 
-            {/* Active Vehicles */}
-            <SectionHeader title="Active Vehicles" action="View All" style={styles.section} />
-            {activeVehicles.map((vehicle) => (
-                <Card key={vehicle.id} style={styles.vehicleCard}>
-                    <View style={styles.vehicleHeader}>
-                        <View style={styles.vehicleIconWrap}>
-                            <Ionicons name="car" size={24} color={Colors.primary} />
-                        </View>
-                        <View style={styles.vehicleInfo}>
-                            <Text style={styles.vehicleName}>{vehicle.make} {vehicle.model} ({vehicle.year})</Text>
-                            <Text style={styles.vehiclePlate}>{vehicle.plate} • {vehicle.type}</Text>
-                        </View>
-                        <Badge label="Active" variant="success" size="sm" />
-                    </View>
-                    <View style={styles.vehicleDetails}>
-                        <View style={styles.vehicleDetailItem}>
-                            <Ionicons name="person" size={14} color={Colors.textMuted} />
-                            <Text style={styles.vehicleDetailText}>{vehicle.assignedDriverName || 'Unassigned'}</Text>
-                        </View>
-                        {vehicle.route && (
-                            <View style={styles.vehicleDetailItem}>
-                                <Ionicons name="navigate" size={14} color={Colors.textMuted} />
-                                <Text style={styles.vehicleDetailText}>{vehicle.route.from} → {vehicle.route.to}</Text>
+            {/* My Fleet */}
+            <SectionHeader title="My Fleet" action="View All" style={styles.section} />
+            {vehicles.map((vehicle) => {
+                const statusConfig = getStatusConfig(vehicle.status);
+                return (
+                    <Card key={vehicle.id} style={styles.vehicleCard}>
+                        <View style={styles.vehicleHeader}>
+                            <View style={styles.vehicleIconWrap}>
+                                <Ionicons name="car" size={24} color={Colors.primary} />
                             </View>
-                        )}
-                        <View style={styles.vehicleDetailItem}>
-                            <Ionicons name="cash" size={14} color={Colors.textMuted} />
-                            <Text style={[styles.vehicleDetailText, { color: Colors.success }]}>
-                                {formatCurrency(vehicle.dailyRevenue)}/day
-                            </Text>
+                            <View style={styles.vehicleInfo}>
+                                <Text style={styles.vehicleName}>{vehicle.make} {vehicle.model} ({vehicle.year})</Text>
+                                <Text style={styles.vehiclePlate}>{vehicle.plate} • {vehicle.type}</Text>
+                            </View>
+                            <Badge label={statusConfig.label} variant={statusConfig.variant as any} size="sm" />
                         </View>
-                    </View>
-                </Card>
-            ))}
+                        <View style={styles.vehicleDetails}>
+                            <View style={styles.vehicleDetailItem}>
+                                <Ionicons name="person" size={14} color={Colors.textMuted} />
+                                <Text style={styles.vehicleDetailText}>{vehicle.assignedDriverName || 'Unassigned'}</Text>
+                            </View>
+                            {vehicle.route && (
+                                <View style={styles.vehicleDetailItem}>
+                                    <Ionicons name="navigate" size={14} color={Colors.textMuted} />
+                                    <Text style={styles.vehicleDetailText}>{vehicle.route.from} → {vehicle.route.to}</Text>
+                                </View>
+                            )}
+                            <View style={styles.vehicleDetailItem}>
+                                <Ionicons name="cash" size={14} color={Colors.textMuted} />
+                                <Text style={[styles.vehicleDetailText, { color: Colors.success }]}>
+                                    {formatCurrency(vehicle.dailyRevenue)}/day
+                                </Text>
+                            </View>
+                        </View>
+                    </Card>
+                );
+            })}
 
             {/* Quick Actions */}
             <SectionHeader title="Quick Actions" style={styles.section} />

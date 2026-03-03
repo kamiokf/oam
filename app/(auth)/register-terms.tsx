@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -10,6 +10,7 @@ import { ProgressBar } from '../../components/ui/ProgressBar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRegistration } from '../../context/RegistrationContext';
 import { useAuth } from '../../context/AuthContext';
+import { showAlert } from '../../utils/alert';
 import { TERMS_OF_SERVICE, CODE_OF_CONDUCT, PRIVACY_POLICY_SUMMARY } from '../../data/registration';
 
 export default function RegisterTermsScreen() {
@@ -51,7 +52,7 @@ export default function RegisterTermsScreen() {
         } catch (err) {
             // Error is handled/alerted in AuthContext
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-            Alert.alert('Registration Failed', errorMessage);
+            showAlert('Registration Failed', errorMessage);
         }
     };
 
@@ -185,6 +186,9 @@ export default function RegisterTermsScreen() {
 
 const styles = StyleSheet.create({
     container: {
+        maxWidth: 1024,
+        width: '100%',
+        alignSelf: 'center',
         flex: 1,
         backgroundColor: Colors.background,
         paddingHorizontal: Spacing.xl,
