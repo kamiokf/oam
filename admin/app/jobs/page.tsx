@@ -4,8 +4,9 @@ import ProtectedLayout from '../components/ProtectedLayout';
 import StatusBadge from '../components/StatusBadge';
 import Link from 'next/link';
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Filter, ChevronUp, ChevronDown, ArrowUpDown, Briefcase, Calendar } from 'lucide-react';
+import { Search, Filter, ChevronUp, ChevronDown, ArrowUpDown, Briefcase, Calendar, Flag, Trash2 } from 'lucide-react';
 import { insforge } from '../../lib/insforge';
+import ConfirmModal from '../components/ConfirmModal';
 
 type SortKey = 'route' | 'vehicleType' | 'dailyPay' | 'status' | 'postedDate';
 type SortDir = 'asc' | 'desc';
@@ -19,6 +20,7 @@ export default function JobsPage() {
     const [jobs, setJobs] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [actionJob, setActionJob] = useState<{ job: any; action: 'flag' | 'remove' } | null>(null);
     const perPage = 10;
 
     useEffect(() => {
@@ -116,6 +118,39 @@ export default function JobsPage() {
         return currentJobs;
     }, [search, statusFilter, sortKey, sortDir, jobs]);
 
+    const handleJobAction = async (reason?: string) => {
+        if (!actionJob) return;
+        const { job, action } = actionJob;
+        const newStatus = action === 'flag' ? 'flagged' : 'closed';
+
+        try {
+            const { error: updateError } = await insforge.database
+                .from('jobs')
+                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .eq('id', job.id);
+            if (updateError) throw updateError;
+
+            // Notify the job owner
+            const notifMsg = action === 'flag'
+                ? `Your job posting for ${job.routeFrom} → ${job.routeTo} has been flagged by an admin.${reason ? ` Reason: ${reason}` : ''}`
+                : `Your job posting for ${job.routeFrom} → ${job.routeTo} has been removed by an admin.${reason ? ` Reason: ${reason}` : ''}`;
+
+            await insforge.database.from('notifications').insert({
+                user_id: job.ownerId,
+                type: 'job_moderation',
+                title: action === 'flag' ? 'Job Posting Flagged' : 'Job Posting Removed',
+                message: notifMsg,
+                data: { jobId: job.id, action: newStatus, reason },
+            });
+
+            setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: newStatus } : j));
+        } catch (err) {
+            console.error('Failed to update job:', err);
+            alert('Failed to update job status.');
+        }
+        setActionJob(null);
+    };
+
     const totalPages = Math.ceil(filtered.length / perPage);
     const paged = filtered.slice((page - 1) * perPage, page * perPage);
 
@@ -151,6 +186,7 @@ export default function JobsPage() {
                                 <option value="open">Open</option>
                                 <option value="filled">Filled</option>
                                 <option value="closed">Closed</option>
+                                <option value="flagged">Flagged</option>
                             </select>
                             <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <Filter size={14} /> Filter
@@ -179,6 +215,7 @@ export default function JobsPage() {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Posted <SortIcon columnKey="postedDate" /></div>
                                     </th>
                                     <th>Applicants</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -231,6 +268,40 @@ export default function JobsPage() {
                                                 {job.applicants}
                                             </div>
                                         </td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: 4 }}>
+                                                {job.status === 'open' && (
+                                                    <>
+                                                        <button
+                                                            className="btn btn-outline btn-sm"
+                                                            title="Flag posting"
+                                                            onClick={() => setActionJob({ job, action: 'flag' })}
+                                                            style={{ padding: '4px 8px', minWidth: 0 }}
+                                                        >
+                                                            <Flag size={14} />
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-danger btn-sm"
+                                                            title="Remove posting"
+                                                            onClick={() => setActionJob({ job, action: 'remove' })}
+                                                            style={{ padding: '4px 8px', minWidth: 0 }}
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {job.status === 'flagged' && (
+                                                    <button
+                                                        className="btn btn-danger btn-sm"
+                                                        title="Remove posting"
+                                                        onClick={() => setActionJob({ job, action: 'remove' })}
+                                                        style={{ padding: '4px 8px', minWidth: 0 }}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -259,6 +330,29 @@ export default function JobsPage() {
                         </button>
                     </div>
                 )}
+
+                <ConfirmModal
+                    isOpen={!!actionJob && actionJob.action === 'flag'}
+                    title="Flag Job Posting"
+                    message={`Flag the ${actionJob?.job?.routeFrom || ''} → ${actionJob?.job?.routeTo || ''} posting by ${actionJob?.job?.ownerName || ''}? The owner will be notified.`}
+                    confirmLabel="Flag Posting"
+                    confirmVariant="danger"
+                    requireReason
+                    reasonLabel="Flag Reason"
+                    onConfirm={handleJobAction}
+                    onCancel={() => setActionJob(null)}
+                />
+                <ConfirmModal
+                    isOpen={!!actionJob && actionJob.action === 'remove'}
+                    title="Remove Job Posting"
+                    message={`Permanently remove the ${actionJob?.job?.routeFrom || ''} → ${actionJob?.job?.routeTo || ''} posting by ${actionJob?.job?.ownerName || ''}? This will close the job and notify the owner.`}
+                    confirmLabel="Remove Posting"
+                    confirmVariant="danger"
+                    requireReason
+                    reasonLabel="Removal Reason"
+                    onConfirm={handleJobAction}
+                    onCancel={() => setActionJob(null)}
+                />
             </div>
         </ProtectedLayout>
     );

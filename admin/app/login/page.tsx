@@ -121,7 +121,7 @@ export default function LoginPage() {
                                     className="form-input"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
-                                    placeholder="admin@onenMove.jm"
+                                    placeholder="you@email.com"
                                     autoFocus
                                 />
                             </div>
@@ -198,41 +198,6 @@ export default function LoginPage() {
                     )}
                 </div>
 
-                {/* Demo Credentials */}
-                <div className="card" style={{ marginTop: 16, padding: 16 }}>
-                    <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Demo Credentials
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {[
-                            { email: 'admin@onenMove.jm', pass: 'Admin@12345!', role: 'Super Admin' },
-                            { email: 'mod@onenMove.jm', pass: 'Mod@12345!', role: 'Moderator' },
-                            { email: 'support@onenMove.jm', pass: 'Support@12345!', role: 'Support' },
-                        ].map(cred => (
-                            <button
-                                key={cred.email}
-                                onClick={() => { setEmail(cred.email); setPassword(cred.pass); setStep('credentials'); setError(''); }}
-                                style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    padding: '8px 12px',
-                                    background: 'var(--surface-light)',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: 'var(--radius)',
-                                    cursor: 'pointer',
-                                    color: 'var(--text-secondary)',
-                                    fontSize: '0.78rem',
-                                    transition: 'all var(--transition)',
-                                    fontFamily: 'inherit',
-                                }}
-                            >
-                                <span style={{ fontFamily: 'monospace' }}>{cred.email}</span>
-                                <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>{cred.role}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
             </div>
         </div>
     );

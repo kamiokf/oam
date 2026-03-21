@@ -18,6 +18,7 @@ export default function RegisterTermsScreen() {
     const { data, updateField, validateStep4 } = useRegistration();
     const { register, isLoading } = useAuth();
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [submitError, setSubmitError] = useState<string>('');
 
     const isDriver = data.selectedRole === 'driver';
 
@@ -27,6 +28,7 @@ export default function RegisterTermsScreen() {
             setErrors(stepErrors);
             return;
         }
+        setSubmitError('');
 
         try {
             // Create user from registration data
@@ -50,8 +52,8 @@ export default function RegisterTermsScreen() {
 
             router.replace('/(auth)/register-welcome');
         } catch (err) {
-            // Error is handled/alerted in AuthContext
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+            setSubmitError(errorMessage);
             showAlert('Registration Failed', errorMessage);
         }
     };
@@ -171,6 +173,9 @@ export default function RegisterTermsScreen() {
             </ScrollView>
 
             <View style={styles.bottom}>
+                {submitError ? (
+                    <Text style={styles.submitErrorText}>{submitError}</Text>
+                ) : null}
                 <Button
                     title="Complete Registration"
                     onPress={handleComplete}
@@ -290,4 +295,13 @@ const styles = StyleSheet.create({
         ...Typography.h4, color: Colors.textSecondary,
     },
     bottom: { paddingTop: Spacing.lg },
+    submitErrorText: {
+        ...Typography.body,
+        color: Colors.error,
+        textAlign: 'center',
+        marginBottom: Spacing.md,
+        backgroundColor: Colors.error + '10',
+        padding: Spacing.sm,
+        borderRadius: BorderRadius.md,
+    },
 });

@@ -36,15 +36,15 @@ export default function DisputesScreen() {
             setIsLoading(true);
             const { data, error } = await insforge.database
                 .from('disputes')
-                .select('*, filed_by:filed_by_id(name, avatar_url, role), filed_against:filed_against_id(name, avatar_url, role)')
-                .or(`filed_by_id.eq.${user.id},filed_against_id.eq.${user.id}`)
-                .order('date_opened', { ascending: false });
+                .select('*, filer:filed_by(name, avatar_url, role), target:filed_against(name, avatar_url, role)')
+                .or(`filed_by.eq.${user.id},filed_against.eq.${user.id}`)
+                .order('created_at', { ascending: false });
 
             if (error) throw error;
 
             const mapped = (data || []).map(d => {
-                const fByObj = Array.isArray(d.filed_by) ? d.filed_by[0] : (d.filed_by || {});
-                const fAgObj = Array.isArray(d.filed_against) ? d.filed_against[0] : (d.filed_against || {});
+                const fByObj = Array.isArray(d.filer) ? d.filer[0] : (d.filer || {});
+                const fAgObj = Array.isArray(d.target) ? d.target[0] : (d.target || {});
 
                 // Fallback rendering
                 let byName = fByObj.name || 'Me';
@@ -56,23 +56,23 @@ export default function DisputesScreen() {
 
                 return {
                     id: d.id,
-                    filedById: d.filed_by_id,
+                    filedById: d.filed_by,
                     filedByName: byName,
                     filedByAvatar: byAvatar,
                     filedByRole: byRole,
-                    againstId: d.filed_against_id,
+                    againstId: d.filed_against,
                     againstName: againstN,
                     againstAvatar: againstN.substring(0, 2).toUpperCase() || '??',
                     againstRole: fAgObj.role || 'owner',
-                    type: d.type || 'billing',
+                    type: d.category || 'billing',
                     category: d.category,
                     description: d.description,
                     status: d.status,
                     priority: d.priority,
                     evidence: d.evidence || [],
                     timeline: d.timeline || [],
-                    resolution: d.resolution,
-                    dateOpened: d.date_opened,
+                    resolution: d.resolution_type ? { outcome: d.resolution_type, description: d.resolution_notes || '' } : undefined,
+                    dateOpened: d.created_at,
                 };
             });
             setDisputes(mapped);
@@ -170,11 +170,14 @@ export default function DisputesScreen() {
                                     actor: 'reporter'
                                 };
 
+                                const refNum = `DSP-${Date.now().toString(36).toUpperCase()}`;
+
                                 const { error } = await insforge.database
                                     .from('disputes')
                                     .insert({
-                                        filed_by_id: user.id,
-                                        type: selectedType,
+                                        reference_number: refNum,
+                                        filed_by: user.id,
+                                        filed_against: user.id,
                                         category: typeInfo.label,
                                         description: disputeDesc ? `[Against: ${againstName}] ${disputeDesc}` : `Dispute against ${againstName} regarding: ${typeInfo.label}`,
                                         status: 'open',

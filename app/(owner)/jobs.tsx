@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -16,53 +16,170 @@ import { useData } from '../../context/DataContext';
 import { insforge } from '../../lib/insforge';
 import { showAlert } from '../../utils/alert';
 
+interface Applicant {
+    appId: string;
+    jobId: string;
+    driverId: string;
+    status: string;
+    appliedAt: string;
+    // Driver info from users table
+    name: string;
+    avatar: string;
+    rating: number;
+    phone: string;
+    experience: string;
+    licenceClass: string;
+    verificationTier: string;
+}
+
 export default function OwnerJobsScreen() {
     const { user } = useAuth();
-    const { jobs, drivers } = useData();
-    const [applications, setApplications] = useState<any[]>([]);
+    const { jobs } = useData();
+    const [applications, setApplications] = useState<Applicant[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const myJobs = jobs.filter(j => j.ownerId === user?.id || j.ownerId === 'owner1');
+    const myJobs = jobs.filter(j => j.ownerId === user?.id);
 
-    useEffect(() => {
+    const fetchApplications = useCallback(async () => {
         if (!user) return;
-
-        async function fetchApplications() {
-            if (!user) return;
+        try {
+            setIsLoading(true);
+            // Fetch applications with driver info from users table
             const { data, error } = await insforge.database
                 .from('applications')
-                .select('*')
+                .select('*, driver:driver_id(name, avatar, rating, phone, experience, licence_class, verification_tier)')
                 .eq('owner_id', user.id)
                 .order('applied_at', { ascending: false });
 
-            if (!error && data) {
-                setApplications(data);
-            }
-        }
+            if (error) throw error;
 
-        fetchApplications();
+            const mapped: Applicant[] = (data || []).map((a: any) => {
+                const driverObj = Array.isArray(a.driver) ? a.driver[0] : (a.driver || {});
+                return {
+                    appId: a.id,
+                    jobId: a.job_id,
+                    driverId: a.driver_id,
+                    status: a.status,
+                    appliedAt: a.applied_at,
+                    name: driverObj.name || 'Unknown Driver',
+                    avatar: driverObj.avatar || '??',
+                    rating: driverObj.rating || 0,
+                    phone: driverObj.phone || '',
+                    experience: driverObj.experience || '',
+                    licenceClass: driverObj.licence_class || '',
+                    verificationTier: driverObj.verification_tier || 'registered',
+                };
+            });
+            setApplications(mapped);
+        } catch (err) {
+            console.error('Failed to fetch applications:', err);
+        } finally {
+            setIsLoading(false);
+        }
     }, [user]);
 
-    const handleApplicationAction = async (appId: string, action: 'accepted' | 'rejected', driverName: string) => {
+    useEffect(() => {
+        fetchApplications();
+    }, [fetchApplications]);
+
+    const handleApplicationAction = async (app: Applicant, action: 'accepted' | 'rejected') => {
         showAlert(
             action === 'accepted' ? 'Accept Driver?' : 'Reject Driver?',
-            `Are you sure you want to ${action === 'accepted' ? 'accept' : 'reject'} application from ${driverName}?`,
+            `Are you sure you want to ${action === 'accepted' ? 'accept' : 'reject'} ${app.name}?`,
             [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Confirm', style: action === 'rejected' ? 'destructive' : 'default', onPress: () => processAction(appId, action) }
+                {
+                    text: 'Confirm',
+                    style: action === 'rejected' ? 'destructive' : 'default',
+                    onPress: () => processAction(app, action),
+                },
             ]
         );
     };
 
-    const processAction = async (appId: string, action: 'accepted' | 'rejected') => {
-        const { error } = await insforge.database
-            .from('applications')
-            .update({ status: action })
-            .eq('id', appId);
+    const processAction = async (app: Applicant, action: 'accepted' | 'rejected') => {
+        try {
+            // 1. Update this application's status
+            const { error } = await insforge.database
+                .from('applications')
+                .update({ status: action, updated_at: new Date().toISOString() })
+                .eq('id', app.appId);
+            if (error) throw error;
 
-        if (!error) {
-            setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: action } : a));
-            showAlert('Success', `Application ${action}!`);
-        } else {
+            if (action === 'accepted') {
+                // 2. Mark job as filled
+                await insforge.database
+                    .from('jobs')
+                    .update({ status: 'filled', updated_at: new Date().toISOString() })
+                    .eq('id', app.jobId);
+
+                // 3. Reject all other pending applications for this job
+                const otherPending = applications.filter(
+                    a => a.jobId === app.jobId && a.appId !== app.appId && a.status === 'pending'
+                );
+                if (otherPending.length > 0) {
+                    await insforge.database
+                        .from('applications')
+                        .update({ status: 'rejected', updated_at: new Date().toISOString() })
+                        .eq('job_id', app.jobId)
+                        .neq('id', app.appId)
+                        .eq('status', 'pending');
+
+                    // 4. Notify rejected drivers
+                    const rejectionNotifications = otherPending.map(a => ({
+                        user_id: a.driverId,
+                        type: 'application_update',
+                        title: 'Application Update',
+                        message: `Your application has been closed — the position has been filled.`,
+                        data: { jobId: app.jobId, status: 'rejected' },
+                    }));
+                    await insforge.database.from('notifications').insert(rejectionNotifications);
+                }
+
+                // 5. Notify accepted driver
+                const job = myJobs.find(j => j.id === app.jobId);
+                await insforge.database.from('notifications').insert({
+                    user_id: app.driverId,
+                    type: 'application_update',
+                    title: 'Application Accepted! 🎉',
+                    message: `${user?.name || 'An owner'} accepted your application for the ${job?.route?.from || ''} → ${job?.route?.to || ''} route.`,
+                    data: { jobId: app.jobId, status: 'accepted' },
+                });
+
+                // 6. Notify self (owner)
+                await insforge.database.from('notifications').insert({
+                    user_id: user!.id,
+                    type: 'application_update',
+                    title: 'Driver Hired',
+                    message: `You accepted ${app.name} for the ${job?.route?.from || ''} → ${job?.route?.to || ''} route.`,
+                    data: { jobId: app.jobId, driverId: app.driverId },
+                });
+
+                // Update local state — mark all apps for this job
+                setApplications(prev => prev.map(a => {
+                    if (a.jobId === app.jobId) {
+                        return { ...a, status: a.appId === app.appId ? 'accepted' : 'rejected' };
+                    }
+                    return a;
+                }));
+
+                showAlert('Driver Accepted! 🎉', `${app.name} has been assigned. All other applicants have been notified.`);
+            } else {
+                // Reject — notify that driver
+                const job = myJobs.find(j => j.id === app.jobId);
+                await insforge.database.from('notifications').insert({
+                    user_id: app.driverId,
+                    type: 'application_update',
+                    title: 'Application Not Selected',
+                    message: `Your application for ${job?.route?.from || ''} → ${job?.route?.to || ''} was not selected.`,
+                    data: { jobId: app.jobId, status: 'rejected' },
+                });
+
+                setApplications(prev => prev.map(a => a.appId === app.appId ? { ...a, status: 'rejected' } : a));
+                showAlert('Application Rejected', `${app.name} has been notified.`);
+            }
+        } catch (err) {
+            console.error('Failed to process application:', err);
             showAlert('Error', 'Failed to update application status.');
         }
     };
@@ -70,19 +187,27 @@ export default function OwnerJobsScreen() {
     return (
         <ScreenWrapper
             title="Jobs & Applications"
-            subtitle={`${myJobs.length} active postings`}
+            subtitle={`${myJobs.length} active posting${myJobs.length !== 1 ? 's' : ''}`}
         >
-            {myJobs.length === 0 ? (
+            {isLoading && (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={styles.loadingText}>Loading applications...</Text>
+                </View>
+            )}
+
+            {!isLoading && myJobs.length === 0 && (
                 <View style={styles.emptyState}>
                     <Ionicons name="document-text-outline" size={48} color={Colors.surfaceBorder} />
                     <Text style={styles.emptyTitle}>No Jobs Posted</Text>
                     <Text style={styles.emptyDesc}>Create a job listing to start receiving applications from qualified drivers.</Text>
                 </View>
-            ) : null}
+            )}
 
-            {myJobs.map(job => {
-                const jobApps = applications.filter(a => a.job_id === job.id);
+            {!isLoading && myJobs.map(job => {
+                const jobApps = applications.filter(a => a.jobId === job.id);
                 const pendingCount = jobApps.filter(a => a.status === 'pending').length;
+                const isFilled = job.status === 'filled' || jobApps.some(a => a.status === 'accepted');
 
                 return (
                     <View key={job.id} style={styles.jobGroup}>
@@ -97,6 +222,7 @@ export default function OwnerJobsScreen() {
                                 <View style={styles.jobMetaRow}>
                                     <Badge label={`${formatCurrency(job.dailyPay || 0)}/day`} variant="secondary" />
                                     <Badge label={job.schedule} variant="neutral" />
+                                    {isFilled && <Badge label="Filled" variant="success" />}
                                 </View>
                             </View>
                             <View style={styles.jobStats}>
@@ -107,60 +233,79 @@ export default function OwnerJobsScreen() {
 
                         {pendingCount > 0 && <SectionHeader title={`${pendingCount} Pending Applications`} style={styles.subSection} />}
 
-                        {jobApps.map(app => {
-                            const driver = drivers.find(d => d.id === app.driver_id);
-                            if (!driver) return null;
+                        {jobApps.length === 0 && (
+                            <View style={styles.noApplicants}>
+                                <Ionicons name="hourglass-outline" size={24} color={Colors.textMuted} />
+                                <Text style={styles.noApplicantsText}>No applications yet — check back soon</Text>
+                            </View>
+                        )}
 
-                            return (
-                                <Card key={app.id} style={styles.applicantCard}>
-                                    <View style={styles.applicantHeader}>
-                                        <Avatar initials={driver.avatar || 'DR'} size={48} />
-                                        <View style={styles.applicantInfo}>
-                                            <Text style={styles.applicantName}>{driver.name}</Text>
-                                            <StarRating rating={driver.rating} size={12} />
-                                        </View>
-                                        <Badge
-                                            label={app.status.charAt(0).toUpperCase() + app.status.slice(1)}
-                                            variant={app.status === 'pending' ? 'warning' : app.status === 'accepted' ? 'success' : 'neutral'}
-                                        />
+                        {jobApps.map(app => (
+                            <Card key={app.appId} style={styles.applicantCard}>
+                                <View style={styles.applicantHeader}>
+                                    <Avatar initials={app.avatar || app.name.substring(0, 2).toUpperCase()} size={48} />
+                                    <View style={styles.applicantInfo}>
+                                        <Text style={styles.applicantName}>{app.name}</Text>
+                                        <StarRating rating={app.rating} size={12} />
                                     </View>
+                                    <Badge
+                                        label={app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                                        variant={app.status === 'pending' ? 'warning' : app.status === 'accepted' ? 'success' : 'neutral'}
+                                    />
+                                </View>
 
-                                    <View style={styles.applicantDetails}>
+                                <View style={styles.applicantDetails}>
+                                    {app.experience ? (
                                         <View style={styles.detailItem}>
                                             <Ionicons name="time" size={14} color={Colors.textMuted} />
-                                            <Text style={styles.detailText}>{driver.experience} years</Text>
+                                            <Text style={styles.detailText}>{app.experience} yrs experience</Text>
                                         </View>
+                                    ) : null}
+                                    {app.licenceClass ? (
                                         <View style={styles.detailItem}>
                                             <Ionicons name="card" size={14} color={Colors.textMuted} />
-                                            <Text style={styles.detailText}>{driver.licenseType} License</Text>
+                                            <Text style={styles.detailText}>{app.licenceClass} Licence</Text>
                                         </View>
-                                        <View style={styles.detailItem}>
-                                            <Ionicons name="car" size={14} color={Colors.textMuted} />
-                                            <Text style={styles.detailText}>{driver.totalTrips || 0} trips</Text>
-                                        </View>
+                                    ) : null}
+                                    <View style={styles.detailItem}>
+                                        <Ionicons name="shield-checkmark" size={14} color={
+                                            app.verificationTier === 'verified' || app.verificationTier === 'fully_verified'
+                                                ? Colors.success : Colors.textMuted
+                                        } />
+                                        <Text style={styles.detailText}>
+                                            {app.verificationTier === 'fully_verified' ? 'Fully Verified'
+                                                : app.verificationTier === 'verified' ? 'Verified'
+                                                    : 'Registered'}
+                                        </Text>
                                     </View>
-
-                                    {app.status === 'pending' && (
-                                        <View style={styles.actionButtons}>
-                                            <Button
-                                                title="Decline"
-                                                variant="ghost"
-                                                size="sm"
-                                                style={styles.actionBtn}
-                                                onPress={() => handleApplicationAction(app.id, 'rejected', driver.name)}
-                                            />
-                                            <Button
-                                                title="Accept Driver"
-                                                variant="primary"
-                                                size="sm"
-                                                style={styles.actionBtn}
-                                                onPress={() => handleApplicationAction(app.id, 'accepted', driver.name)}
-                                            />
+                                    {app.appliedAt && (
+                                        <View style={styles.detailItem}>
+                                            <Ionicons name="calendar" size={14} color={Colors.textMuted} />
+                                            <Text style={styles.detailText}>Applied {new Date(app.appliedAt).toLocaleDateString()}</Text>
                                         </View>
                                     )}
-                                </Card>
-                            );
-                        })}
+                                </View>
+
+                                {app.status === 'pending' && (
+                                    <View style={styles.actionButtons}>
+                                        <Button
+                                            title="Decline"
+                                            variant="ghost"
+                                            size="sm"
+                                            style={styles.actionBtn}
+                                            onPress={() => handleApplicationAction(app, 'rejected')}
+                                        />
+                                        <Button
+                                            title="Accept Driver"
+                                            variant="primary"
+                                            size="sm"
+                                            style={styles.actionBtn}
+                                            onPress={() => handleApplicationAction(app, 'accepted')}
+                                        />
+                                    </View>
+                                )}
+                            </Card>
+                        ))}
                     </View>
                 );
             })}
@@ -169,6 +314,15 @@ export default function OwnerJobsScreen() {
 }
 
 const styles = StyleSheet.create({
+    loadingContainer: {
+        alignItems: 'center',
+        paddingVertical: Spacing['3xl'],
+        gap: Spacing.md,
+    },
+    loadingText: {
+        ...Typography.body,
+        color: Colors.textMuted,
+    },
     emptyState: {
         alignItems: 'center',
         padding: Spacing['3xl'],
@@ -216,6 +370,7 @@ const styles = StyleSheet.create({
     jobMetaRow: {
         flexDirection: 'row',
         gap: Spacing.sm,
+        flexWrap: 'wrap',
     },
     jobStats: {
         alignItems: 'center',
@@ -234,6 +389,19 @@ const styles = StyleSheet.create({
     subSection: {
         marginTop: Spacing.md,
         marginBottom: Spacing.sm,
+    },
+    noApplicants: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+        padding: Spacing.xl,
+        backgroundColor: Colors.surfaceLight,
+        borderRadius: BorderRadius.lg,
+    },
+    noApplicantsText: {
+        ...Typography.body,
+        color: Colors.textMuted,
+        flex: 1,
     },
     applicantCard: {
         marginBottom: Spacing.sm,

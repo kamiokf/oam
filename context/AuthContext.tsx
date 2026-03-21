@@ -1,5 +1,24 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { insforge } from '../lib/insforge';
+
+// Platform-specific Firebase imports
+let nativeAuth: any = null;
+let webAuth: any = null;
+let webSignInWithPhoneNumber: any = null;
+let WebRecaptchaVerifier: any = null;
+
+if (Platform.OS === 'web') {
+    // Firebase JS SDK for web
+    const firebaseWeb = require('../lib/firebase-web');
+    webAuth = firebaseWeb.webAuth;
+    webSignInWithPhoneNumber = firebaseWeb.signInWithPhoneNumber;
+    WebRecaptchaVerifier = firebaseWeb.RecaptchaVerifier;
+} else {
+    // Native Firebase for iOS/Android
+    nativeAuth = require('@react-native-firebase/auth').default;
+}
 
 export type UserRole = 'driver' | 'owner' | 'both';
 export type ActiveView = 'driver' | 'owner';
@@ -62,12 +81,33 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true); // Start loading to check session
     const [isNewUser, setIsNewUser] = useState(true);
+    const confirmationRef = useRef<any>(null);
+    const recaptchaVerifierRef = useRef<any>(null);
+
+    // Initial session load
+    useEffect(() => {
+        const loadSession = async () => {
+            try {
+                const storedUser = await AsyncStorage.getItem('authUser');
+                if (storedUser) {
+                    setUser(JSON.parse(storedUser));
+                    setIsNewUser(false);
+                }
+            } catch (e) {
+                console.error('Failed to load session from storage', e);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadSession();
+    }, []);
 
     const login = useCallback(async (phone: string) => {
         setIsLoading(true);
         try {
+            // 1. Check if user exists in the database
             const { data, error } = await insforge.database
                 .from('users')
                 .select('*')
@@ -105,10 +145,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 };
                 setUser(userObj);
                 setIsNewUser(false);
+                AsyncStorage.setItem('authUser', JSON.stringify(userObj)).catch(console.error);
+            }
+
+            // 2. Send OTP via Firebase Phone Auth
+            // Normalize phone to E.164 format for Firebase: +18765550100
+            const e164Phone = phone.replace(/\s/g, '');
+
+            if (Platform.OS === 'web') {
+                // Web: Use Firebase JS SDK with RecaptchaVerifier
+                if (!recaptchaVerifierRef.current) {
+                    recaptchaVerifierRef.current = new WebRecaptchaVerifier(webAuth, 'recaptcha-container', {
+                        size: 'invisible',
+                    });
+                }
+                const confirmation = await webSignInWithPhoneNumber(webAuth, e164Phone, recaptchaVerifierRef.current);
+                confirmationRef.current = confirmation;
+            } else {
+                // Native: Use @react-native-firebase/auth
+                const confirmation = await nativeAuth().signInWithPhoneNumber(e164Phone);
+                confirmationRef.current = confirmation;
             }
         } catch (error) {
             console.error('Login error:', error);
             setIsNewUser(true);
+            // Reset reCAPTCHA on error so it can be retried
+            if (Platform.OS === 'web' && recaptchaVerifierRef.current) {
+                try { recaptchaVerifierRef.current.clear(); } catch (_) { }
+                recaptchaVerifierRef.current = null;
+            }
+            throw error;
         } finally {
             setIsLoading(false);
         }
@@ -116,13 +182,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const verifyOtp = useCallback(async (code: string) => {
         setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        if (code === '123456' || code.length === 6) {
-            setIsLoading(false);
+        try {
+            if (!confirmationRef.current) {
+                console.error('No confirmation result found. Did you call login() first?');
+                return false;
+            }
+            await confirmationRef.current.confirm(code);
+            // If confirm() doesn't throw, the code is valid
+            confirmationRef.current = null;
             return true;
+        } catch (error) {
+            console.error('OTP verification failed:', error);
+            return false;
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
-        return false;
     }, []);
 
     const register = useCallback(async (data: Partial<AuthUser>) => {
@@ -191,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             setUser(newUser);
             setIsNewUser(false);
+            AsyncStorage.setItem('authUser', JSON.stringify(newUser)).catch(console.error);
         } catch (error) {
             console.error('Error during registration:', error);
             throw error;
@@ -200,16 +275,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const setUserRole = useCallback((role: UserRole) => {
-        setUser((prev) => (prev ? { ...prev, role } : null));
+        setUser((prev) => {
+            if (!prev) return null;
+            const updated = { ...prev, role };
+            AsyncStorage.setItem('authUser', JSON.stringify(updated)).catch(console.error);
+            return updated;
+        });
     }, []);
 
     const updateProfile = useCallback((data: Partial<AuthUser>) => {
-        setUser((prev) => (prev ? { ...prev, ...data } : null));
+        setUser((prev) => {
+            if (!prev) return null;
+            const updated = { ...prev, ...data };
+            AsyncStorage.setItem('authUser', JSON.stringify(updated)).catch(console.error);
+            return updated;
+        });
     }, []);
 
     const logout = useCallback(() => {
         setUser(null);
         setIsNewUser(true);
+        confirmationRef.current = null;
+        AsyncStorage.removeItem('authUser').catch(console.error);
+        if (Platform.OS === 'web') {
+            webAuth?.signOut().catch(console.error);
+        } else {
+            nativeAuth?.().signOut().catch(console.error);
+        }
     }, []);
 
     return (

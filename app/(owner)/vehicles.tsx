@@ -33,14 +33,18 @@ export default function VehiclesScreen() {
     const filters = [
         { id: 'all', label: 'All', count: vehicles.length },
         { id: 'active', label: 'Active', count: vehicles.filter((v) => v.status === 'active').length },
+        { id: 'pending_verification', label: 'Pending', count: vehicles.filter((v) => v.status === 'pending_verification').length },
+        { id: 'suspended', label: 'Suspended', count: vehicles.filter((v) => v.status === 'suspended').length },
         { id: 'maintenance', label: 'Maintenance', count: vehicles.filter((v) => v.status === 'maintenance').length },
         { id: 'inactive', label: 'Inactive', count: vehicles.filter((v) => v.status === 'inactive').length },
     ];
 
-    const statusConfig = {
-        active: { variant: 'success' as const, label: 'Active' },
-        maintenance: { variant: 'warning' as const, label: 'Maintenance' },
-        inactive: { variant: 'neutral' as const, label: 'Inactive' },
+    const statusConfig: Record<string, { variant: 'success' | 'warning' | 'neutral' | 'error'; label: string }> = {
+        active: { variant: 'success', label: 'Active' },
+        pending_verification: { variant: 'warning', label: 'Pending' },
+        suspended: { variant: 'error', label: 'Suspended' },
+        maintenance: { variant: 'warning', label: 'Maintenance' },
+        inactive: { variant: 'neutral', label: 'Inactive' },
     };
 
     const filteredVehicles = activeFilter === 'all'

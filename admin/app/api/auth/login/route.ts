@@ -26,10 +26,21 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Mock login validation
-        if (body.email === 'admin@onenMove.jm' && body.password === 'Admin@12345!') {
+        // Validate credentials against environment variables
+        const adminEmail = process.env.ADMIN_EMAIL;
+        const adminPassword = process.env.ADMIN_PASSWORD;
+
+        if (!adminEmail || !adminPassword) {
+            console.error('ADMIN_EMAIL or ADMIN_PASSWORD environment variables not set');
             return NextResponse.json(
-                { message: 'Authentication successful', token: 'mock-jwt-token-123' },
+                { error: 'Server configuration error' },
+                { status: 500, headers }
+            );
+        }
+
+        if (body.email === adminEmail && body.password === adminPassword) {
+            return NextResponse.json(
+                { message: 'Authentication successful', token: 'admin-session-token' },
                 { status: 200, headers }
             );
         }

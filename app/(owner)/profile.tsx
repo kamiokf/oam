@@ -12,12 +12,40 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../context/RoleContext';
+import { useData } from '../../context/DataContext';
 import { showAlert } from '../../utils/alert';
 
 export default function OwnerProfile() {
     const router = useRouter();
     const { user, logout } = useAuth();
     const { isDualRole } = useRole();
+    const { vehicles, reviews } = useData();
+
+    // Calculate actual stats for owner
+    const myVehicles = vehicles.filter(v => v.ownerId === user?.id);
+    const vehicleCount = myVehicles.length || user?.numberOfVehicles || 0;
+
+    // Drivers: count unique assigned drivers for owner's vehicles
+    const activeDriversCount = new Set(myVehicles.filter(v => v.assignedDriver).map(v => v.assignedDriver)).size;
+
+    // Rating: average from reviews where toId === user?.id
+    const myReviews = reviews.filter(r => r.toId === user?.id);
+    const avgRating = myReviews.length > 0
+        ? (myReviews.reduce((acc, r) => acc + r.rating, 0) / myReviews.length).toFixed(1)
+        : '0.0';
+
+    // Membership tenure
+    const getMembershipDuration = () => {
+        if (!user?.joinedDate) return 'New';
+        const joined = new Date(user.joinedDate);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - joined.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays < 30) return `${diffDays}d`;
+        if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
+        return `${Math.floor(diffDays / 365)}yr`;
+    };
+    const memberSince = getMembershipDuration();
 
     const menuItems = [
         { icon: 'business' as const, label: 'Business Information', subtitle: 'Company name, TRN, address', route: null },
@@ -30,7 +58,7 @@ export default function OwnerProfile() {
         { icon: 'settings' as const, label: 'Settings', subtitle: 'Privacy, about, language', route: '/(shared)/settings' },
     ];
 
-    const handleMenuPress = (item: typeof menuItems[0]) => {
+    const handleMenuPress = (item: any) => {
         if (item.route) {
             router.push(item.route as any);
         } else {
@@ -44,16 +72,57 @@ export default function OwnerProfile() {
         }
     };
 
+    // Calculate expiring documents alert (mock dynamic logic based on actual data if available)
+    const expiringDocsCount = vehicles.filter(v =>
+        (v.fitnessExpiry && new Date(v.fitnessExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) ||
+        (v.insuranceExpiry && new Date(v.insuranceExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
+    ).length;
+
+    const documentBadge = expiringDocsCount > 0 ? `${expiringDocsCount} Expiring` : undefined;
+
+    const getTierLabel = () => {
+        switch (user?.verificationTier) {
+            case 'fully_verified': return 'Fully Verified';
+            case 'verified': return 'Verified';
+            default: return 'Registered';
+        }
+    };
+
+    const getTierVariant = () => {
+        switch (user?.verificationTier) {
+            case 'fully_verified': return 'primary';
+            case 'verified': return 'success';
+            default: return 'warning';
+        }
+    };
+
+    // Update menuItems dynamically
+    const dynamicMenuItems = menuItems.map(item => {
+        if (item.label === 'Business Documents') {
+            return { ...item, badge: documentBadge };
+        }
+        if (item.label === 'Verification Status') {
+            return { ...item, subtitle: `Business ${user?.verificationTier === 'registered' ? 'pending verification' : 'verified'}` };
+        }
+        return item;
+    });
+
+    // Calculate initials dynamically
+    const getInitials = (name?: string) => {
+        if (!name) return 'U';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    };
+
     return (
         <ScreenWrapper title="Profile" headerRight={isDualRole ? <RoleSwitcher /> : undefined}>
             <Card variant="elevated" style={styles.profileCard}>
                 <View style={styles.profileHeader}>
-                    <Avatar initials={user?.avatar || 'AM'} size={64} bgColor={Colors.secondaryMuted} color={Colors.secondaryDark} />
+                    <Avatar initials={user?.avatar || getInitials(user?.name)} size={64} bgColor={Colors.secondaryMuted} color={Colors.secondaryDark} />
                     <View style={styles.profileInfo}>
-                        <Text style={styles.profileName}>{user?.name || 'Alex Morgan'}</Text>
+                        <Text style={styles.profileName}>{user?.name || 'Loading...'}</Text>
                         <Text style={styles.profileType}>Fleet Owner</Text>
                         <View style={styles.profileBadges}>
-                            <Badge label="Verified" variant="success" size="sm" />
+                            <Badge label={getTierLabel()} variant={getTierVariant() as any} size="sm" />
                             <Badge label="Owner" variant="secondary" size="sm" />
                         </View>
                     </View>
@@ -61,29 +130,29 @@ export default function OwnerProfile() {
 
                 <View style={styles.statsRow}>
                     <View style={styles.stat}>
-                        <Text style={styles.statValue}>5</Text>
+                        <Text style={styles.statValue}>{vehicleCount}</Text>
                         <Text style={styles.statLabel}>Vehicles</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.stat}>
-                        <Text style={styles.statValue}>4</Text>
+                        <Text style={styles.statValue}>{activeDriversCount}</Text>
                         <Text style={styles.statLabel}>Drivers</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.stat}>
-                        <Text style={styles.statValue}>4.7</Text>
+                        <Text style={styles.statValue}>{avgRating}</Text>
                         <Text style={styles.statLabel}>Rating</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.stat}>
-                        <Text style={styles.statValue}>2yr</Text>
+                        <Text style={styles.statValue}>{memberSince}</Text>
                         <Text style={styles.statLabel}>Member</Text>
                     </View>
                 </View>
             </Card>
 
             <View style={styles.menu}>
-                {menuItems.map((item, i) => (
+                {dynamicMenuItems.map((item, i) => (
                     <TouchableOpacity key={i} style={styles.menuItem} activeOpacity={0.7} onPress={() => handleMenuPress(item)}>
                         <View style={[styles.menuIconWrap, { backgroundColor: Colors.secondaryMuted }]}>
                             <Ionicons name={item.icon} size={22} color={Colors.secondary} />

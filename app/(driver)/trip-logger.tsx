@@ -10,12 +10,17 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
 import { insforge } from '../../lib/insforge';
+import { useAuth } from '../../context/AuthContext';
+import { showAlert } from '../../utils/alert';
 
 export default function TripLoggerScreen() {
+    const { user } = useAuth();
     const [isActive, setIsActive] = useState(false);
     const [elapsed, setElapsed] = useState(0);
     const [distance, setDistance] = useState(0);
     const pulseAnim = useRef(new Animated.Value(1)).current;
+    const currentTripId = useRef<string | null>(null);
+    const startTimeRef = useRef<string>('');
 
     // Simulate GPS pulse animation when trip is active
     useEffect(() => {
@@ -94,7 +99,75 @@ export default function TripLoggerScreen() {
             }
         }
         fetchTrips();
-    }, []);
+    }, [isActive]);
+
+    const handleStartTrip = async () => {
+        if (!user) return;
+        try {
+            const now = new Date().toISOString();
+            startTimeRef.current = now;
+            const { data, error } = await insforge.database
+                .from('trips')
+                .insert({
+                    driver_id: user.id,
+                    vehicle_plate: 'TBD',
+                    route_from: 'Kingston',
+                    route_to: 'Spanish Town',
+                    start_time: now,
+                    start_lat: 18.0179,
+                    start_lng: -76.8099,
+                    status: 'active',
+                    gps_verified: true,
+                })
+                .select('id')
+                .single();
+
+            if (error) throw error;
+            currentTripId.current = data?.id || null;
+            setIsActive(true);
+            setElapsed(0);
+            setDistance(0);
+        } catch (err) {
+            console.error('Failed to start trip:', err);
+            showAlert('Error', 'Could not start the trip. Please try again.');
+        }
+    };
+
+    const handleEndTrip = async () => {
+        if (!currentTripId.current) {
+            setIsActive(false);
+            return;
+        }
+        try {
+            const durationMinutes = Math.floor(elapsed / 60);
+            const fare = Math.round(distance * 120); // rough J$ estimate per km
+            const endLat = 18.0179 - elapsed * 0.00003;
+            const endLng = -76.8099 - elapsed * 0.0001;
+
+            const { error } = await insforge.database
+                .from('trips')
+                .update({
+                    end_time: new Date().toISOString(),
+                    duration_minutes: durationMinutes,
+                    distance_km: parseFloat(distance.toFixed(2)),
+                    fare,
+                    end_lat: parseFloat(endLat.toFixed(6)),
+                    end_lng: parseFloat(endLng.toFixed(6)),
+                    status: 'completed',
+                    gps_verified: true,
+                })
+                .eq('id', currentTripId.current);
+
+            if (error) throw error;
+            showAlert('Trip Completed! ✅', `Distance: ${distance.toFixed(1)} km • Duration: ${Math.floor(elapsed / 60)} min`);
+            currentTripId.current = null;
+            setIsActive(false);
+        } catch (err) {
+            console.error('Failed to end trip:', err);
+            showAlert('Error', 'Could not save the trip. Please try again.');
+            setIsActive(false);
+        }
+    };
 
     return (
         <ScreenWrapper title="Trip Logger" subtitle="GPS-Verified Trips">
@@ -143,7 +216,7 @@ export default function TripLoggerScreen() {
                             </View>
                         </View>
 
-                        <Button title="End Trip" variant="danger" fullWidth onPress={() => setIsActive(false)} />
+                        <Button title="End Trip" variant="danger" fullWidth onPress={handleEndTrip} />
                     </>
                 ) : (
                     <View style={styles.startSection}>
@@ -152,7 +225,7 @@ export default function TripLoggerScreen() {
                         </View>
                         <Text style={styles.startTitle}>Start a New Trip</Text>
                         <Text style={styles.startDesc}>GPS will verify your route, mileage, and duration automatically</Text>
-                        <Button title="Start Trip" variant="primary" fullWidth onPress={() => { setIsActive(true); setElapsed(0); setDistance(0); }} />
+                        <Button title="Start Trip" variant="primary" fullWidth onPress={handleStartTrip} />
                     </View>
                 )}
             </Card>

@@ -91,17 +91,17 @@ export default function RegisterWelcomeScreen() {
             {/* Actions */}
             <Animated.View style={[styles.bottom, { opacity: fadeAnim }]}>
                 <Button
-                    title={isOwner ? 'Add Your First Vehicle' : 'Browse Available Jobs'}
+                    title="Upload Documents"
                     onPress={() => {
                         switchRole(isOwner ? 'owner' : 'driver');
                         reset();
-                        router.replace(isOwner ? '/(owner)/add-vehicle' : '/(driver)/jobs');
+                        router.replace('/(shared)/document-upload');
                     }}
                     size="lg"
                     fullWidth
                 />
                 <TouchableOpacity onPress={handleGoToDashboard}>
-                    <Text style={styles.skipText}>Go to Dashboard</Text>
+                    <Text style={styles.skipText}>Skip — Go to Dashboard</Text>
                 </TouchableOpacity>
             </Animated.View>
         </View>

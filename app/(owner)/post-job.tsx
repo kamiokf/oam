@@ -28,7 +28,17 @@ export default function PostJobScreen() {
     const [description, setDescription] = useState('');
     const [selectedVehicle, setSelectedVehicle] = useState('');
 
-    const isValid = routeFrom && routeTo && dailyPay && schedule;
+    const today = new Date().toISOString().split('T')[0];
+    const eligibleVehicles = vehicles.filter(v =>
+        v.status === 'active' &&
+        v.fitnessExpiry > today &&
+        v.insuranceExpiry > today &&
+        (!v.registrationExpiry || v.registrationExpiry > today)
+    );
+
+    const selectedVehicleObj = vehicles.find(v => v.id === selectedVehicle);
+    const isVehicleEligible = !selectedVehicle || eligibleVehicles.some(v => v.id === selectedVehicle);
+    const isValid = routeFrom && routeTo && dailyPay && schedule && isVehicleEligible;
 
     const toggleReq = (req: string) => {
         setSelectedReqs((prev) =>
@@ -118,8 +128,13 @@ export default function PostJobScreen() {
                         {/* Vehicle */}
                         <View style={styles.field}>
                             <Text style={styles.label}>Vehicle</Text>
+                            {eligibleVehicles.length === 0 && vehicles.length > 0 && (
+                                <Text style={{ color: Colors.warning, fontSize: 13, marginBottom: 4 }}>
+                                    ⚠️ No eligible vehicles — all have expired documents or are pending verification.
+                                </Text>
+                            )}
                             <View style={styles.typeRow}>
-                                {vehicles.filter((v) => v.status === 'active').map((v) => (
+                                {eligibleVehicles.map((v) => (
                                     <TouchableOpacity
                                         key={v.id}
                                         style={[styles.typeChip, selectedVehicle === v.id && styles.typeChipActive]}

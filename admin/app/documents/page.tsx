@@ -53,7 +53,8 @@ export default function DocumentsPage() {
                     assignedToName: adminObj.full_name || null,
                     expiryDate: d.expiry_date,
                     rejectionReason: d.rejection_reason,
-                    fileType: d.file_type || 'image/jpeg'
+                    fileType: d.file_type || 'image/jpeg',
+                    fileUrl: d.file_url || null,
                 };
             });
             setQueue(mapped);
@@ -90,12 +91,52 @@ export default function DocumentsPage() {
         try {
             const { error } = await insforge.database
                 .from('user_documents')
-                .update({ status: newStatus, rejection_reason: newReason })
+                .update({ status: newStatus, rejection_reason: newReason, review_date: new Date().toISOString() })
                 .eq('id', selectedDoc.id);
 
             if (error) throw error;
 
             setQueue(prev => prev.map(d => d.id === selectedDoc.id ? { ...d, status: newStatus as any, rejectionReason: newReason } : d));
+
+            // Auto-verify: check if all docs for this user are now approved
+            if (action === 'approve') {
+                const userDocs = queue.filter(d => d.userId === selectedDoc.userId);
+                const allApproved = userDocs.every(d =>
+                    d.id === selectedDoc.id ? true : d.status === 'approved'
+                );
+                if (allApproved && userDocs.length >= 2) {
+                    // Update user verification tier
+                    await insforge.database
+                        .from('users')
+                        .update({ verification_tier: 'verified', updated_at: new Date().toISOString() })
+                        .eq('id', selectedDoc.userId);
+
+                    // Create notification for the user
+                    await insforge.database
+                        .from('notifications')
+                        .insert({
+                            user_id: selectedDoc.userId,
+                            type: 'document_status',
+                            title: 'Documents Verified!',
+                            message: 'All your documents have been approved. Your account is now verified!',
+                            data: { verificationTier: 'verified' },
+                        });
+                }
+            }
+
+            // Notify user of individual document status change
+            if (action === 'approve' || action === 'reject') {
+                const statusText = action === 'approve' ? 'approved' : 'rejected';
+                await insforge.database
+                    .from('notifications')
+                    .insert({
+                        user_id: selectedDoc.userId,
+                        type: 'document_status',
+                        title: `Document ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
+                        message: `Your ${selectedDoc.documentType} has been ${statusText}.${action === 'reject' && newReason ? ` Reason: ${newReason}` : ''}`,
+                        data: { documentType: selectedDoc.documentType, status: statusText },
+                    });
+            }
         } catch (err) {
             console.error('Failed to update document status:', err);
             alert('Failed to update document status');
@@ -150,13 +191,22 @@ export default function DocumentsPage() {
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     border: '1px solid var(--border)',
+                                    overflow: 'hidden',
                                 }}>
-                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                                        <FileText size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
-                                        <p style={{ fontSize: '0.85rem' }}>{selectedDoc.documentType}</p>
-                                        <p style={{ fontSize: '0.75rem' }}>Document preview placeholder</p>
-                                        <p style={{ fontSize: '0.72rem', marginTop: 4 }}>File type: {selectedDoc.fileType}</p>
-                                    </div>
+                                    {(selectedDoc as any).fileUrl ? (
+                                        <img
+                                            src={(selectedDoc as any).fileUrl}
+                                            alt={selectedDoc.documentType}
+                                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                        />
+                                    ) : (
+                                        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                                            <FileText size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
+                                            <p style={{ fontSize: '0.85rem' }}>{selectedDoc.documentType}</p>
+                                            <p style={{ fontSize: '0.75rem' }}>No file uploaded</p>
+                                            <p style={{ fontSize: '0.72rem', marginTop: 4 }}>File type: {selectedDoc.fileType}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

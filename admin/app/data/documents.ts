@@ -14,6 +14,7 @@ export interface DocumentQueueItem {
     rejectionReason?: string;
     notes?: string;
     fileType: string;
+    fileUrl?: string | null;
 }
 
 export const REJECTION_REASONS = [

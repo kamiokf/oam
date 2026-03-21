@@ -10,6 +10,7 @@ import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { showAlert } from '../../utils/alert';
 
 const VEHICLE_TYPES = ['Minibus', 'Bus', 'Car', 'Coaster', 'SUV'];
@@ -17,6 +18,7 @@ const VEHICLE_TYPES = ['Minibus', 'Bus', 'Car', 'Coaster', 'SUV'];
 export default function AddVehicleScreen() {
     const router = useRouter();
     const { addVehicle } = useData();
+    const { user } = useAuth();
 
     const [make, setMake] = useState('');
     const [model, setModel] = useState('');
@@ -36,13 +38,13 @@ export default function AddVehicleScreen() {
         }
 
         addVehicle({
-            ownerId: 'owner1',
+            ownerId: user?.id || '',
             make: make.trim(),
             model: model.trim(),
             year: parseInt(year) || 2024,
             plate: plate.trim().toUpperCase(),
             type: selectedType,
-            status: 'active',
+            status: 'pending_verification',
             dailyRevenue: 0,
             fitnessExpiry: fitnessExpiry || '2027-01-01',
             insuranceExpiry: insuranceExpiry || '2027-01-01',

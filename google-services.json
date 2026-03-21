@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "490635093435",
+    "project_id": "onenmove",
+    "storage_bucket": "onenmove.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:490635093435:android:107c1cf3073968f5ba109e",
+        "android_client_info": {
+          "package_name": "com.onenmove.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRo8udKEDHc86Sz-XB-cLLsRHdd_7zYrg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

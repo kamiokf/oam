@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { ADMIN_CREDENTIALS, ROLE_PERMISSIONS, type AdminUser } from '../data/admin-users';
+import { ROLE_PERMISSIONS, type AdminUser } from '../data/admin-users';
 import { insforge } from '../../lib/insforge';
 
 interface AdminAuthContextType {
@@ -109,18 +109,6 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
     const login = useCallback(async (email: string, password: string, totpCode: string) => {
         setIsLoading(true);
-        await new Promise(r => setTimeout(r, 800)); // Simulate network
-
-        const cred = ADMIN_CREDENTIALS.find(c => c.email === email);
-        if (!cred) {
-            setIsLoading(false);
-            return { success: false, error: 'Invalid email or password' };
-        }
-
-        if (cred.password !== password) {
-            setIsLoading(false);
-            return { success: false, error: 'Invalid email or password' };
-        }
 
         // Mock 2FA — accept any 6-digit code
         if (totpCode.length !== 6 || !/^\d+$/.test(totpCode)) {
@@ -128,25 +116,44 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
             return { success: false, error: 'Invalid 2FA code. Enter a 6-digit code.' };
         }
 
+        // Validate credentials via secure API route (checks env vars server-side)
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            });
+
+            if (res.status === 429) {
+                setIsLoading(false);
+                return { success: false, error: 'Too many login attempts. Please try again in 5 minutes.' };
+            }
+
+            if (!res.ok) {
+                setIsLoading(false);
+                return { success: false, error: 'Invalid email or password' };
+            }
+        } catch {
+            setIsLoading(false);
+            return { success: false, error: 'Network error. Please try again.' };
+        }
+
+        // Credentials valid — look up admin user from DB
         const { data: foundAdmin, error } = await insforge.database
             .from('admin_users')
             .select('*')
-            .eq('email', email)
+            .eq('role', 'super_admin')
+            .eq('is_active', true)
             .single();
 
         if (error || !foundAdmin) {
             setIsLoading(false);
-            return { success: false, error: 'Admin account not found' };
-        }
-
-        if (!foundAdmin.is_active) {
-            setIsLoading(false);
-            return { success: false, error: 'Account is deactivated' };
+            return { success: false, error: 'Admin account not found in database' };
         }
 
         const mappedAdmin: AdminUser = {
             id: foundAdmin.id,
-            email: foundAdmin.email,
+            email: email, // Use the login email, not the DB email
             fullName: foundAdmin.full_name,
             role: foundAdmin.role as any,
             isActive: foundAdmin.is_active,

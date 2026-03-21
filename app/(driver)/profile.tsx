@@ -19,16 +19,42 @@ export default function DriverProfile() {
     const router = useRouter();
     const { user, logout } = useAuth();
     const { isDualRole } = useRole();
-    const { reviews } = useData();
+    const { reviews, trips, referrals, disputes } = useData();
+
+    // Rating
+    const myReviews = reviews.filter(r => r.toId === user?.id);
+    const avgRating = myReviews.length > 0
+        ? (myReviews.reduce((acc, r) => acc + r.rating, 0) / myReviews.length).toFixed(1)
+        : '0.0';
+
+    // Trips
+    const myTrips = trips.filter(t => t.driverId === user?.id);
+    const totalTrips = myTrips.length;
+
+    // Years of Experience
+    const yearsOfExp = user?.yearsOfExperience || 0;
+
+    // License Class
+    const licenceClass = user?.licenceClass || 'N/A';
+
+    // Dynamic menu data
+    const verificationLabel = user?.verificationTier === 'fully_verified' ? 'Fully verified' : user?.verificationTier === 'verified' ? 'Verified' : 'Basic';
+    const reviewCount = myReviews.length;
+    const reviewSubtitle = reviewCount > 0 ? `${avgRating} average • ${reviewCount} reviews` : 'No reviews yet';
+    const myReferrals = referrals.filter(r => r.referredBy === user?.id);
+    const referralEarned = myReferrals.filter(r => r.status === 'paid' || r.status === 'completed').reduce((sum, r) => sum + (r.bonusAmount || 0), 0);
+    const referralSubtitle = myReferrals.length > 0 ? `${myReferrals.length} referred • J$${referralEarned.toLocaleString()} earned` : 'Invite friends to earn bonuses';
+    const activeDisputeCount = disputes.filter(d => ['open', 'under_review', 'escalated'].includes(d.status) && (d.filedBy === user?.id || d.against === user?.id)).length;
+    const disputeSubtitle = activeDisputeCount > 0 ? `${activeDisputeCount} active dispute${activeDisputeCount > 1 ? 's' : ''}` : 'No active disputes';
 
     const menuItems = [
         { icon: 'person-circle' as const, label: 'Personal Information', subtitle: 'Name, phone, email', route: null },
-        { icon: 'shield-checkmark' as const, label: 'Background Checks', subtitle: 'Premium verified • 3/3 complete', route: '/(shared)/background-checks' },
+        { icon: 'shield-checkmark' as const, label: 'Background Checks', subtitle: `${verificationLabel}`, route: '/(shared)/background-checks' },
         { icon: 'navigate' as const, label: 'Trip Log', subtitle: 'GPS-verified trips & mileage', route: '/(driver)/trip-logger' },
         { icon: 'document-text' as const, label: 'Documents', subtitle: 'License, badges, records', badge: '1 Expiring', route: '/(shared)/background-checks' },
-        { icon: 'star' as const, label: 'Reviews & Ratings', subtitle: '4.8 average • 23 reviews', route: '/(shared)/reviews' },
-        { icon: 'gift' as const, label: 'Referrals', subtitle: '4 referred • J$5,000 earned', route: '/(shared)/referrals' },
-        { icon: 'alert-circle' as const, label: 'Disputes', subtitle: '1 active dispute', route: '/(shared)/disputes' },
+        { icon: 'star' as const, label: 'Reviews & Ratings', subtitle: reviewSubtitle, route: '/(shared)/reviews' },
+        { icon: 'gift' as const, label: 'Referrals', subtitle: referralSubtitle, route: '/(shared)/referrals' },
+        { icon: 'alert-circle' as const, label: 'Disputes', subtitle: disputeSubtitle, route: '/(shared)/disputes' },
         { icon: 'notifications' as const, label: 'Notifications', subtitle: 'Push & SMS alerts', route: '/(shared)/notifications' },
         { icon: 'settings' as const, label: 'Settings', subtitle: 'Privacy, SMS, GPS tracking', route: '/(shared)/settings' },
     ];
@@ -41,15 +67,21 @@ export default function DriverProfile() {
         }
     };
 
+    // Calculate initials dynamically
+    const getInitials = (name?: string) => {
+        if (!name) return 'U';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    };
+
     return (
         <ScreenWrapper title="Profile" headerRight={isDualRole ? <RoleSwitcher /> : undefined}>
             {/* Profile Card */}
             <Card variant="elevated" style={styles.profileCard}>
                 <View style={styles.profileHeader}>
-                    <Avatar initials={user?.avatar || 'AM'} size={64} bgColor={Colors.primaryMuted} color={Colors.primaryLight} />
+                    <Avatar initials={user?.avatar || getInitials(user?.name)} size={64} bgColor={Colors.primaryMuted} color={Colors.primaryLight} />
                     <View style={styles.profileInfo}>
-                        <Text style={styles.profileName}>{user?.name || 'Alex Morgan'}</Text>
-                        <Text style={styles.profilePhone}>{user?.phone || '+1 876 555 0100'}</Text>
+                        <Text style={styles.profileName}>{user?.name || 'Loading...'}</Text>
+                        <Text style={styles.profilePhone}>{user?.phone || ''}</Text>
                         <View style={styles.profileBadges}>
                             <Badge label="Premium Verified" variant="primary" size="sm" />
                             <Badge label="Driver" variant="success" size="sm" />
@@ -59,22 +91,22 @@ export default function DriverProfile() {
 
                 <View style={styles.statsRow}>
                     <View style={styles.stat}>
-                        <Text style={styles.statValue}>4.8</Text>
+                        <Text style={styles.statValue}>{avgRating}</Text>
                         <Text style={styles.statLabel}>Rating</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.stat}>
-                        <Text style={styles.statValue}>1,250</Text>
+                        <Text style={styles.statValue}>{totalTrips}</Text>
                         <Text style={styles.statLabel}>Trips</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.stat}>
-                        <Text style={styles.statValue}>5</Text>
+                        <Text style={styles.statValue}>{yearsOfExp}</Text>
                         <Text style={styles.statLabel}>Years</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.stat}>
-                        <Text style={styles.statValue}>PPV</Text>
+                        <Text style={styles.statValue}>{licenceClass}</Text>
                         <Text style={styles.statLabel}>License</Text>
                     </View>
                 </View>

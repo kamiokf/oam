@@ -4,6 +4,7 @@ import { useAdminAuth } from '../context/AdminAuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Sidebar from './Sidebar';
+import TopHeader from './TopHeader';
 
 interface ProtectedLayoutProps {
     children: React.ReactNode;
@@ -42,6 +43,7 @@ export default function ProtectedLayout({ children, requirePermission }: Protect
         <div className="admin-layout">
             <Sidebar />
             <main className="admin-main">
+                <TopHeader />
                 <div className="admin-content">
                     {children}
                 </div>
@@ -49,3 +51,4 @@ export default function ProtectedLayout({ children, requirePermission }: Protect
         </div>
     );
 }
+

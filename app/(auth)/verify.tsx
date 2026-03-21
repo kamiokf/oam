@@ -50,13 +50,7 @@ export default function VerifyScreen() {
         return () => clearTimeout(timer);
     }, [lockedUntil]);
 
-    // Auto-fill for demo
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setCode(['1', '2', '3', '4', '5', '6']);
-        }, 1500);
-        return () => clearTimeout(timer);
-    }, []);
+    // Auto-fill removed — real SMS codes are now sent via Firebase Phone Auth
 
     const isLocked = lockedUntil !== null && Date.now() < lockedUntil;
     const lockRemaining = lockedUntil ? Math.ceil((lockedUntil - Date.now()) / 60000) : 0;

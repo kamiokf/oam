@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
 import { Card } from '../../components/ui/Card';
@@ -9,76 +10,181 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
+import { insforge } from '../../lib/insforge';
 
-const checks = [
-    { id: 'police', name: 'Police Record', icon: 'shield-checkmark', description: 'Clean criminal record from JCF', status: 'verified', verifiedDate: '2026-01-15', expiryDate: '2027-01-15' },
-    { id: 'license', name: 'License Validation', icon: 'card', description: 'Valid PPV license from ITA', status: 'verified', verifiedDate: '2026-01-10', expiryDate: '2026-12-01' },
-    { id: 'references', name: 'Reference Checks', icon: 'people', description: 'Two professional references verified', status: 'verified', verifiedDate: '2026-02-01' },
-];
+interface DocumentRecord {
+    id: string;
+    type: string;
+    status: string;
+    upload_date: string;
+    expiry_date?: string;
+    rejection_reason?: string;
+    file_url?: string;
+}
 
 const TIERS = [
-    { level: 'basic', label: 'Basic', desc: 'License only', min: 1, color: Colors.textMuted },
-    { level: 'standard', label: 'Standard', desc: '+ Police record', min: 2, color: Colors.info },
-    { level: 'premium', label: 'Premium', desc: '+ References', min: 3, color: Colors.primary },
+    { level: 'registered', label: 'Registered', desc: 'Account created', min: 0, color: Colors.textMuted },
+    { level: 'verified', label: 'Verified', desc: 'Core docs approved', min: 2, color: Colors.info },
+    { level: 'fully_verified', label: 'Fully Verified', desc: 'All docs + background', min: 3, color: Colors.primary },
 ];
 
-const statusCfg: Record<string, { icon: string; color: string; label: string }> = {
-    verified: { icon: 'checkmark-circle', color: Colors.success, label: 'Verified' },
-    pending: { icon: 'time', color: Colors.warning, label: 'Pending' },
-    expired: { icon: 'alert-circle', color: Colors.error, label: 'Expired' },
-    not_submitted: { icon: 'add-circle', color: Colors.textMuted, label: 'Not Submitted' },
+const statusCfg: Record<string, { icon: string; color: string; label: string; badgeVariant: 'success' | 'warning' | 'error' | 'info' }> = {
+    approved: { icon: 'checkmark-circle', color: Colors.success, label: 'Approved', badgeVariant: 'success' },
+    pending: { icon: 'time', color: Colors.warning, label: 'Pending', badgeVariant: 'warning' },
+    rejected: { icon: 'close-circle', color: Colors.error, label: 'Rejected', badgeVariant: 'error' },
+    reupload_requested: { icon: 'refresh-circle', color: Colors.warning, label: 'Re-upload', badgeVariant: 'warning' },
+    flagged: { icon: 'flag', color: Colors.error, label: 'Flagged', badgeVariant: 'error' },
+    expired: { icon: 'alert-circle', color: Colors.error, label: 'Expired', badgeVariant: 'error' },
+};
+
+const DOC_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+    'Drivers Licence': 'card-outline',
+    'PPV Badge': 'shield-outline',
+    'Police Record': 'document-text-outline',
+    'TRN Card': 'id-card-outline',
+    'Route Licence': 'document-text-outline',
+    'Insurance Certificate': 'shield-checkmark-outline',
+    'Fitness Certificate': 'car-outline',
 };
 
 export default function BackgroundChecksScreen() {
-    const verified = checks.filter((c) => c.status === 'verified').length;
-    const tier = [...TIERS].reverse().find((t) => verified >= t.min) || TIERS[0];
+    const router = useRouter();
+    const { user } = useAuth();
+    const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchDocuments = useCallback(async () => {
+        if (!user) return;
+        try {
+            setIsLoading(true);
+            const { data, error } = await insforge.database
+                .from('user_documents')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('upload_date', { ascending: false });
+
+            if (error) throw error;
+            setDocuments(data || []);
+        } catch (err) {
+            console.error('Failed to fetch documents:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        fetchDocuments();
+    }, [fetchDocuments]);
+
+    const approvedCount = documents.filter(d => d.status === 'approved').length;
+    const currentTier = [...TIERS].reverse().find(t => approvedCount >= t.min) || TIERS[0];
+
+    if (isLoading) {
+        return (
+            <ScreenWrapper title="Background Checks" subtitle="Build trust with verified credentials">
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={styles.loadingText}>Loading your documents...</Text>
+                </View>
+            </ScreenWrapper>
+        );
+    }
 
     return (
         <ScreenWrapper title="Background Checks" subtitle="Build trust with verified credentials">
             {/* Trust Badge */}
             <Card variant="highlighted" style={styles.badgeCard}>
                 <View style={styles.badgeRow}>
-                    <View style={[styles.badgeIcon, { backgroundColor: `${tier.color}20` }]}>
-                        <Ionicons name="shield-checkmark" size={32} color={tier.color} />
+                    <View style={[styles.badgeIcon, { backgroundColor: `${currentTier.color}20` }]}>
+                        <Ionicons name="shield-checkmark" size={32} color={currentTier.color} />
                     </View>
                     <View style={styles.badgeInfo}>
-                        <Badge label={`${tier.label} Verified`} variant={tier.level === 'premium' ? 'primary' : 'info'} />
-                        <Text style={styles.badgeDesc}>{tier.desc}</Text>
+                        <Badge
+                            label={`${currentTier.label}`}
+                            variant={currentTier.level === 'fully_verified' ? 'primary' : currentTier.level === 'verified' ? 'info' : 'warning'}
+                        />
+                        <Text style={styles.badgeDesc}>{currentTier.desc}</Text>
                     </View>
                 </View>
                 <View style={styles.progressWrap}>
                     <View style={styles.progressHeader}>
-                        <Text style={styles.progressLabel}>Progress</Text>
-                        <Text style={styles.progressCount}>{verified}/{checks.length}</Text>
+                        <Text style={styles.progressLabel}>Documents Approved</Text>
+                        <Text style={styles.progressCount}>{approvedCount}/{documents.length}</Text>
                     </View>
                     <View style={styles.progressTrack}>
-                        <View style={[styles.progressBar, { width: `${(verified / checks.length) * 100}%` }]} />
+                        <View style={[styles.progressBar, {
+                            width: documents.length > 0 ? `${(approvedCount / documents.length) * 100}%` : '0%'
+                        }]} />
                     </View>
                 </View>
             </Card>
 
-            {/* Steps */}
-            <SectionHeader title="Verification Steps" style={styles.section} />
-            {checks.map((check, i) => {
-                const cfg = statusCfg[check.status];
-                return (
-                    <Card key={check.id} style={styles.checkCard}>
-                        <View style={styles.checkRow}>
-                            <View style={styles.stepNum}><Text style={styles.stepNumText}>{i + 1}</Text></View>
-                            <View style={styles.checkInfo}>
-                                <Text style={styles.checkName}>{check.name}</Text>
-                                <Text style={styles.checkDesc}>{check.description}</Text>
-                            </View>
-                            <Ionicons name={cfg.icon as any} size={24} color={cfg.color} />
-                        </View>
-                        <View style={styles.checkMeta}>
-                            <Badge label={cfg.label} variant={check.status === 'verified' ? 'success' : 'warning'} size="sm" />
-                            {check.verifiedDate && <Text style={styles.metaDate}>Verified: {check.verifiedDate}</Text>}
-                            {check.expiryDate && <Text style={styles.metaDate}>Expires: {check.expiryDate}</Text>}
-                        </View>
-                    </Card>
-                );
-            })}
+            {/* Documents */}
+            <SectionHeader title="Your Documents" style={styles.section} />
+
+            {documents.length === 0 ? (
+                <Card style={styles.emptyCard}>
+                    <View style={styles.emptyContent}>
+                        <Ionicons name="document-text-outline" size={48} color={Colors.textMuted} />
+                        <Text style={styles.emptyTitle}>No Documents Uploaded</Text>
+                        <Text style={styles.emptyDesc}>Upload your credentials to get verified and unlock more opportunities.</Text>
+                        <Button
+                            title="Upload Documents"
+                            onPress={() => router.push('/(shared)/document-upload')}
+                            size="lg"
+                        />
+                    </View>
+                </Card>
+            ) : (
+                <>
+                    {documents.map((doc, i) => {
+                        const cfg = statusCfg[doc.status] || statusCfg.pending;
+                        const icon = DOC_ICONS[doc.type] || 'document-outline';
+
+                        return (
+                            <Card key={doc.id} style={styles.checkCard}>
+                                <View style={styles.checkRow}>
+                                    <View style={styles.stepNum}>
+                                        <Ionicons name={icon} size={18} color={Colors.primary} />
+                                    </View>
+                                    <View style={styles.checkInfo}>
+                                        <Text style={styles.checkName}>{doc.type}</Text>
+                                        {doc.rejection_reason && (
+                                            <Text style={styles.rejectionText}>
+                                                Reason: {doc.rejection_reason}
+                                            </Text>
+                                        )}
+                                    </View>
+                                    <Ionicons name={cfg.icon as any} size={24} color={cfg.color} />
+                                </View>
+                                <View style={styles.checkMeta}>
+                                    <Badge label={cfg.label} variant={cfg.badgeVariant} size="sm" />
+                                    {doc.upload_date && (
+                                        <Text style={styles.metaDate}>
+                                            Uploaded: {new Date(doc.upload_date).toLocaleDateString()}
+                                        </Text>
+                                    )}
+                                    {doc.expiry_date && (
+                                        <Text style={styles.metaDate}>
+                                            Expires: {new Date(doc.expiry_date).toLocaleDateString()}
+                                        </Text>
+                                    )}
+                                </View>
+                            </Card>
+                        );
+                    })}
+
+                    {/* Upload more button */}
+                    <TouchableOpacity
+                        style={styles.uploadMoreBtn}
+                        onPress={() => router.push('/(shared)/document-upload')}
+                    >
+                        <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+                        <Text style={styles.uploadMoreText}>Upload More Documents</Text>
+                    </TouchableOpacity>
+                </>
+            )}
 
             {/* Tiers */}
             <SectionHeader title="Verification Tiers" style={styles.section} />
@@ -91,7 +197,7 @@ export default function BackgroundChecksScreen() {
                         <Text style={styles.tierName}>{t.label}</Text>
                         <Text style={styles.tierDesc}>{t.desc}</Text>
                     </View>
-                    {tier.level === t.level && <Badge label="Current" variant="primary" size="sm" />}
+                    {currentTier.level === t.level && <Badge label="Current" variant="primary" size="sm" />}
                 </View>
             ))}</Card>
 
@@ -113,6 +219,8 @@ export default function BackgroundChecksScreen() {
 }
 
 const styles = StyleSheet.create({
+    loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80, gap: Spacing.lg },
+    loadingText: { ...Typography.body, color: Colors.textMuted },
     badgeCard: { marginBottom: Spacing.lg },
     badgeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, marginBottom: Spacing.xl },
     badgeIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
@@ -125,15 +233,26 @@ const styles = StyleSheet.create({
     progressTrack: { height: 8, backgroundColor: Colors.surfaceLight, borderRadius: 4, overflow: 'hidden' },
     progressBar: { height: '100%', backgroundColor: Colors.primary, borderRadius: 4 },
     section: { marginTop: Spacing.xl },
+    emptyCard: { marginBottom: Spacing.lg },
+    emptyContent: { alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.xl },
+    emptyTitle: { ...Typography.h4, color: Colors.textPrimary },
+    emptyDesc: { ...Typography.body, color: Colors.textMuted, textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.lg },
     checkCard: { marginBottom: Spacing.md },
     checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.md },
-    stepNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.primaryMuted, alignItems: 'center', justifyContent: 'center' },
-    stepNumText: { ...Typography.captionBold, color: Colors.primary },
+    stepNum: { width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.primaryMuted, alignItems: 'center', justifyContent: 'center' },
     checkInfo: { flex: 1, gap: 4 },
     checkName: { ...Typography.bodyBold, color: Colors.textPrimary },
-    checkDesc: { ...Typography.caption, color: Colors.textMuted },
-    checkMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+    rejectionText: { ...Typography.caption, color: Colors.error, lineHeight: 18 },
+    checkMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flexWrap: 'wrap' },
     metaDate: { ...Typography.small, color: Colors.textMuted },
+    uploadMoreBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: Spacing.sm, paddingVertical: Spacing.lg,
+        borderRadius: BorderRadius.lg, borderWidth: 1, borderStyle: 'dashed',
+        borderColor: Colors.primary + '50',
+        marginBottom: Spacing.md,
+    },
+    uploadMoreText: { ...Typography.bodyBold, color: Colors.primary },
     tierRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.lg },
     tierBorder: { borderBottomWidth: 1, borderBottomColor: Colors.surfaceBorder },
     tierDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },

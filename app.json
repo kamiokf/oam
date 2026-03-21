@@ -14,7 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.onenmove.app"
+      "bundleIdentifier": "com.onenmove.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,6 +28,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.onenmove.app",
+      "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -33,7 +38,16 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0126e367-4114-4876-a544-f2d53588c005"
+      }
+    },
+    "owner": "kamiokf"
   }
 }

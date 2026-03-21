@@ -21,22 +21,39 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/users', label: 'Users', icon: Users },
-    { href: '/jobs', label: 'Jobs', icon: Briefcase },
-    { href: '/trips', label: 'Trips', icon: MapPin },
-    { href: '/documents', label: 'Documents', icon: FileCheck },
-    { href: '/alerts', label: 'Alerts', icon: Bell },
-    { href: '/disputes', label: 'Disputes', icon: Scale },
-    { href: '/audit-logs', label: 'Audit Logs', icon: Activity },
-    { href: '/reports', label: 'Reports', icon: BarChartIcon },
-    { href: '/settings', label: 'Settings', icon: Settings },
+interface NavItem {
+    href: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    section: 'main' | 'management' | 'system';
+    requiredPermission?: string;
+}
+
+const navItems: NavItem[] = [
+    // Main
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'main' },
+    { href: '/users', label: 'Users', icon: Users, section: 'main' },
+    { href: '/jobs', label: 'Jobs', icon: Briefcase, section: 'main' },
+    { href: '/trips', label: 'Trips', icon: MapPin, section: 'main' },
+    // Management
+    { href: '/documents', label: 'Documents', icon: FileCheck, section: 'management' },
+    { href: '/alerts', label: 'Alerts', icon: Bell, section: 'management' },
+    { href: '/disputes', label: 'Disputes', icon: Scale, section: 'management' },
+    // System
+    { href: '/audit-logs', label: 'Audit Logs', icon: Activity, section: 'system', requiredPermission: 'viewAuditLog' },
+    { href: '/reports', label: 'Reports', icon: BarChartIcon, section: 'system', requiredPermission: 'accessFinancials' },
+    { href: '/settings', label: 'Settings', icon: Settings, section: 'system', requiredPermission: 'manageSettings' },
 ];
+
+const sectionLabels: Record<string, string> = {
+    main: 'Main',
+    management: 'Management',
+    system: 'System',
+};
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const { admin, logout } = useAdminAuth();
+    const { admin, logout, canPerform } = useAdminAuth();
     const [collapsed, setCollapsed] = useState(false);
 
     const roleLabels: Record<string, string> = {
@@ -44,6 +61,12 @@ export default function Sidebar() {
         moderator: 'Moderator',
         support_agent: 'Support Agent',
     };
+
+    const filteredItems = navItems.filter(item =>
+        !item.requiredPermission || canPerform(item.requiredPermission)
+    );
+
+    const sections = ['main', 'management', 'system'] as const;
 
     return (
         <aside
@@ -100,33 +123,58 @@ export default function Sidebar() {
             </div>
 
             {/* Navigation */}
-            <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {navItems.map(item => {
-                    const isActive = pathname.startsWith(item.href);
-                    const Icon = item.icon;
+            <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
+                {sections.map(section => {
+                    const sectionItems = filteredItems.filter(i => i.section === section);
+                    if (sectionItems.length === 0) return null;
                     return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 12,
-                                padding: collapsed ? '10px 12px' : '10px 14px',
-                                borderRadius: 'var(--radius)',
-                                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
-                                background: isActive ? 'var(--primary-muted)' : 'transparent',
-                                fontWeight: isActive ? 600 : 500,
-                                fontSize: '0.85rem',
-                                transition: 'all var(--transition)',
-                                textDecoration: 'none',
-                                justifyContent: collapsed ? 'center' : 'flex-start',
-                            }}
-                            title={collapsed ? item.label : undefined}
-                        >
-                            <Icon size={20} style={{ flexShrink: 0 }} />
-                            {!collapsed && <span>{item.label}</span>}
-                        </Link>
+                        <div key={section}>
+                            {!collapsed && (
+                                <div
+                                    style={{
+                                        fontSize: '0.65rem',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                        color: 'var(--text-muted)',
+                                        letterSpacing: '0.08em',
+                                        padding: '16px 14px 6px',
+                                    }}
+                                >
+                                    {sectionLabels[section]}
+                                </div>
+                            )}
+                            {collapsed && section !== 'main' && (
+                                <div style={{ height: 1, background: 'var(--border)', margin: '8px 12px' }} />
+                            )}
+                            {sectionItems.map(item => {
+                                const isActive = pathname.startsWith(item.href);
+                                const Icon = item.icon;
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 12,
+                                            padding: collapsed ? '10px 12px' : '10px 14px',
+                                            borderRadius: 'var(--radius)',
+                                            color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                                            background: isActive ? 'var(--primary-muted)' : 'transparent',
+                                            fontWeight: isActive ? 600 : 500,
+                                            fontSize: '0.85rem',
+                                            transition: 'all var(--transition)',
+                                            textDecoration: 'none',
+                                            justifyContent: collapsed ? 'center' : 'flex-start',
+                                        }}
+                                        title={collapsed ? item.label : undefined}
+                                    >
+                                        <Icon size={20} style={{ flexShrink: 0 }} />
+                                        {!collapsed && <span>{item.label}</span>}
+                                    </Link>
+                                );
+                            })}
+                        </div>
                     );
                 })}
             </nav>

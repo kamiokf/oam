@@ -6,7 +6,7 @@ export interface Vehicle {
     year: number;
     plate: string;
     type: string;
-    status: 'active' | 'maintenance' | 'inactive';
+    status: 'active' | 'maintenance' | 'inactive' | 'pending_verification' | 'suspended';
     assignedDriver?: string;
     assignedDriverName?: string;
     dailyRevenue: number;

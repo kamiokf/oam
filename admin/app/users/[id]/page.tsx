@@ -29,25 +29,35 @@ export default function UserDetailPage() {
     useEffect(() => {
         async function fetchUser() {
             try {
-                const { data, error } = await insforge.database
-                    .from('users')
-                    .select('*')
-                    .eq('id', id)
-                    .single();
+                const [userRes, docsRes] = await Promise.all([
+                    insforge.database.from('users').select('*').eq('id', id).single(),
+                    insforge.database.from('user_documents').select('*').eq('user_id', id).order('upload_date', { ascending: false }),
+                ]);
 
-                if (data && !error) {
+                if (userRes.data && !userRes.error) {
+                    const data = userRes.data;
                     setUser({
                         ...data,
                         role: data.role,
                         verificationTier: data.verification_tier,
                         registeredDate: new Date(data.registered_date).toISOString().split('T')[0],
-                        lastActive: new Date().toISOString().split('T')[0], // Mock for now
-                        documents: [],
+                        lastActive: data.last_active ? new Date(data.last_active).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                        documents: (docsRes.data || []).map((d: any) => ({
+                            id: d.id,
+                            type: d.type,
+                            uploadDate: d.upload_date ? new Date(d.upload_date).toISOString().split('T')[0] : '',
+                            expiryDate: d.expiry_date ? new Date(d.expiry_date).toISOString().split('T')[0] : null,
+                            status: d.status,
+                            reviewedBy: d.reviewed_by || null,
+                            reviewDate: d.review_date ? new Date(d.review_date).toISOString().split('T')[0] : null,
+                            rejectionReason: d.rejection_reason || null,
+                            fileUrl: d.file_url || null,
+                        })),
                         notes: [],
                         statusHistory: [],
-                        rating: 4.8, // Mock for now
-                        totalTrips: data.role === 'driver' || data.role === 'dual' ? 150 : undefined,
-                        numberOfVehicles: data.role === 'owner' || data.role === 'dual' ? 1 : undefined,
+                        rating: parseFloat(data.rating) || 0,
+                        totalTrips: data.total_trips || 0,
+                        numberOfVehicles: data.number_of_vehicles || 0,
                     });
                 }
             } catch (err) {
@@ -94,6 +104,50 @@ export default function UserDetailPage() {
             createdAt: new Date().toISOString().split('T')[0],
         }]);
         setNewNote('');
+    };
+
+    const handleStatusChange = async (newStatus: string, reason?: string) => {
+        if (!user) return;
+        try {
+            const { error } = await insforge.database
+                .from('users')
+                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .eq('id', user.id);
+            if (error) throw error;
+
+            // Create notification for the user
+            const statusMessages: Record<string, { title: string; message: string }> = {
+                suspended: {
+                    title: 'Account Suspended',
+                    message: `Your account has been suspended.${reason ? ` Reason: ${reason}` : ''} Contact support for more information.`,
+                },
+                active: {
+                    title: 'Account Reactivated',
+                    message: 'Your account has been reactivated. You now have full access to the platform.',
+                },
+                banned: {
+                    title: 'Account Banned',
+                    message: `Your account has been permanently banned.${reason ? ` Reason: ${reason}` : ''}`,
+                },
+            };
+
+            const msg = statusMessages[newStatus];
+            if (msg) {
+                await insforge.database.from('notifications').insert({
+                    user_id: user.id,
+                    type: 'account_status',
+                    title: msg.title,
+                    message: msg.message,
+                    data: { newStatus, reason },
+                });
+            }
+
+            // Update local state
+            setUser((prev: any) => ({ ...prev, status: newStatus }));
+        } catch (err) {
+            console.error('Failed to update user status:', err);
+        }
+        setModal({ type: '', open: false });
     };
 
     const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
@@ -388,7 +442,7 @@ export default function UserDetailPage() {
                     confirmVariant="danger"
                     requireReason
                     reasonLabel="Suspension Reason"
-                    onConfirm={() => setModal({ type: '', open: false })}
+                    onConfirm={(reason) => handleStatusChange('suspended', reason)}
                     onCancel={() => setModal({ type: '', open: false })}
                 />
                 <ConfirmModal
@@ -397,7 +451,7 @@ export default function UserDetailPage() {
                     message={`Are you sure you want to reactivate ${user.name}? They will regain full access based on their verification tier.`}
                     confirmLabel="Reactivate"
                     confirmVariant="success"
-                    onConfirm={() => setModal({ type: '', open: false })}
+                    onConfirm={() => handleStatusChange('active')}
                     onCancel={() => setModal({ type: '', open: false })}
                 />
                 <ConfirmModal
@@ -408,7 +462,7 @@ export default function UserDetailPage() {
                     confirmVariant="danger"
                     requireReason
                     reasonLabel="Ban Reason"
-                    onConfirm={() => setModal({ type: '', open: false })}
+                    onConfirm={(reason) => handleStatusChange('banned', reason)}
                     onCancel={() => setModal({ type: '', open: false })}
                 />
             </div>

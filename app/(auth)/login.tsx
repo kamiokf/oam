@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
+
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -22,8 +23,17 @@ export default function LoginScreen() {
             const cleanPhone = phone.replace(/\D/g, '');
             const formattedPhone = `+1 876 ${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 7)}`;
 
-            await login(formattedPhone);
-            router.push(`/(auth)/verify?role=${role}&phone=${encodeURIComponent(formattedPhone)}`);
+            try {
+                await login(formattedPhone);
+                router.push(`/(auth)/verify?role=${role}&phone=${encodeURIComponent(formattedPhone)}`);
+            } catch (error: any) {
+                const message = error?.message || 'Failed to send verification code. Please try again.';
+                if (Platform.OS === 'web') {
+                    window.alert(message);
+                } else {
+                    Alert.alert('Error', message);
+                }
+            }
         }
     };
 
@@ -70,6 +80,9 @@ export default function LoginScreen() {
                     disabled={phone.length < 7}
                 />
             </View>
+
+            {/* Invisible reCAPTCHA container for Firebase Phone Auth on web */}
+            {Platform.OS === 'web' && <View nativeID="recaptcha-container" />}
         </KeyboardAvoidingView>
     );
 }

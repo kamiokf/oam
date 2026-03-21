@@ -70,15 +70,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
+        if (!user) {
+            setIsLoaded(true);
+            return;
+        }
+        const currentUser = user;
         async function loadData() {
             try {
-                // Fetch vehicles from Supabase
-                const { data: vData, error: vError } = await insforge.database
+                // Fetch vehicles from Supabase (owner sees their own)
+                let vehicleQuery = insforge.database
                     .from('vehicles')
                     .select('*')
                     .order('created_at', { ascending: false });
+                if (currentUser.role === 'owner' || currentUser.role === 'both') {
+                    vehicleQuery = vehicleQuery.eq('owner_id', currentUser.id);
+                }
+                const { data: vData, error: vError } = await vehicleQuery;
 
                 if (!vError && vData) {
+                    const today = new Date().toISOString().split('T')[0];
                     const mappedVehicles: Vehicle[] = vData.map(v => ({
                         id: v.id,
                         ownerId: v.owner_id,
@@ -97,16 +107,51 @@ export function DataProvider({ children }: { children: ReactNode }) {
                         image: v.image,
                         route: v.route,
                     }));
-                    setVehicles(mappedVehicles);
+
+                    // Auto-suspend vehicles with expired documents
+                    const toSuspend = mappedVehicles.filter(v =>
+                        v.status === 'active' && (
+                            v.fitnessExpiry < today ||
+                            v.insuranceExpiry < today ||
+                            (v.registrationExpiry && v.registrationExpiry < today)
+                        )
+                    );
+                    if (toSuspend.length > 0) {
+                        const suspendIds = toSuspend.map(v => v.id);
+                        await insforge.database
+                            .from('vehicles')
+                            .update({ status: 'suspended', updated_at: new Date().toISOString() })
+                            .in('id', suspendIds);
+
+                        // Notify owners of suspended vehicles
+                        const ownerNotifs = toSuspend.map(v => ({
+                            user_id: v.ownerId,
+                            type: 'vehicle_expiry',
+                            title: 'Vehicle Suspended',
+                            message: `Your vehicle ${v.make} ${v.model} (${v.plate}) has been suspended due to expired documents. Please upload renewed documents to reactivate.`,
+                            data: { vehicleId: v.id },
+                        }));
+                        await insforge.database.from('notifications').insert(ownerNotifs);
+                    }
+
+                    // Update local state with corrected statuses
+                    const suspendSet = new Set(toSuspend.map(v => v.id));
+                    setVehicles(mappedVehicles.map(v =>
+                        suspendSet.has(v.id) ? { ...v, status: 'suspended' as const } : v
+                    ));
                 } else if (vError) {
                     console.error("Supabase fetch error for vehicles", vError);
                 }
 
-                // Fetch drivers from Supabase
-                const { data: dData, error: dError } = await insforge.database
+                // Fetch drivers from Supabase (owner sees their own)
+                let driverQuery = insforge.database
                     .from('drivers')
                     .select('*')
                     .order('created_at', { ascending: false });
+                if (currentUser.role === 'owner' || currentUser.role === 'both') {
+                    driverQuery = driverQuery.eq('owner_id', currentUser.id);
+                }
+                const { data: dData, error: dError } = await driverQuery;
 
                 if (!dError && dData) {
                     setDrivers(dData.map(d => ({
@@ -159,18 +204,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
                     })));
                 }
 
-                // Fetch earnings from Supabase
-                const { data: eData } = await insforge.database
+                // Fetch earnings from Supabase (driver sees their own)
+                let earningsQuery = insforge.database
                     .from('earnings')
                     .select('*')
                     .order('date', { ascending: false });
+                if (currentUser.role === 'driver' || currentUser.role === 'both') {
+                    earningsQuery = earningsQuery.eq('driver_id', currentUser.id);
+                }
+                const { data: eData } = await earningsQuery;
 
                 if (eData) {
                     setEarnings(eData.map(e => ({
                         id: e.id,
                         date: e.date,
                         amount: e.amount,
-                        route: e.route,
+                        route: { from: e.route_from, to: e.route_to },
                         vehiclePlate: e.vehicle_plate,
                         status: e.status,
                         trips: e.trips,
@@ -180,39 +229,48 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 // Fetch disputes from Supabase
                 const { data: dispData } = await insforge.database
                     .from('disputes')
-                    .select('*')
-                    .order('date_opened', { ascending: false });
+                    .select('*, filer:filed_by(name, avatar, role), target:filed_against(name, avatar, role)')
+                    .or(`filed_by.eq.${currentUser.id},filed_against.eq.${currentUser.id}`)
+                    .order('created_at', { ascending: false });
 
                 if (dispData) {
-                    setDisputes(dispData.map(d => ({
-                        id: d.id,
-                        filedBy: d.filed_by,
-                        filedByName: d.filed_by_name,
-                        filedByAvatar: d.filed_by_avatar,
-                        filedByRole: d.filed_by_role,
-                        against: d.against,
-                        againstName: d.against_name,
-                        againstAvatar: d.against_avatar,
-                        againstRole: d.against_role,
-                        type: d.type,
-                        category: d.category,
-                        description: d.description,
-                        status: d.status,
-                        priority: d.priority,
-                        evidence: d.evidence || [],
-                        timeline: d.timeline || [],
-                        resolution: d.resolution,
-                        relatedTripId: d.related_trip_id,
-                        dateOpened: d.date_opened,
-                        dateResolved: d.date_resolved,
-                    })));
+                    setDisputes(dispData.map(d => {
+                        const filerObj = Array.isArray(d.filer) ? d.filer[0] : (d.filer || {});
+                        const targetObj = Array.isArray(d.target) ? d.target[0] : (d.target || {});
+                        return {
+                            id: d.id,
+                            filedBy: d.filed_by,
+                            filedByName: (filerObj as any)?.name || 'Unknown',
+                            filedByAvatar: ((filerObj as any)?.name || 'UN').substring(0, 2).toUpperCase(),
+                            filedByRole: (filerObj as any)?.role || 'driver',
+                            against: d.filed_against,
+                            againstName: (targetObj as any)?.name || 'Unknown',
+                            againstAvatar: ((targetObj as any)?.name || 'UN').substring(0, 2).toUpperCase(),
+                            againstRole: (targetObj as any)?.role || 'owner',
+                            type: d.category || 'other',
+                            category: d.category,
+                            description: d.description,
+                            status: d.status,
+                            priority: d.priority,
+                            evidence: d.evidence || [],
+                            timeline: d.timeline || [],
+                            resolution: d.resolution_type ? { outcome: d.resolution_type, description: d.resolution_notes || '', date: d.resolved_at || '' } : undefined,
+                            relatedTripId: d.related_job_id,
+                            dateOpened: d.created_at,
+                            dateResolved: d.resolved_at,
+                        };
+                    }));
                 }
 
-                // Fetch trips from Supabase
-                const { data: tData, error: tError } = await insforge.database
+                // Fetch trips from Supabase (driver sees their own)
+                let tripQuery = insforge.database
                     .from('trips')
                     .select('*, driver:driver_id(name)')
                     .order('start_time', { ascending: false });
+                if (currentUser.role === 'driver' || currentUser.role === 'both') {
+                    tripQuery = tripQuery.eq('driver_id', currentUser.id);
+                }
+                const { data: tData, error: tError } = await tripQuery;
 
                 if (!tError && tData) {
                     setTrips(tData.map(t => {
@@ -329,7 +387,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             }
         }
         loadData();
-    }, []);
+    }, [user?.id]);
 
     const addVehicle = async (v: Omit<Vehicle, 'id'>) => {
         const payload = {
@@ -345,6 +403,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             daily_revenue: v.dailyRevenue,
             fitness_expiry: v.fitnessExpiry,
             insurance_expiry: v.insuranceExpiry,
+            registration_expiry: v.registrationExpiry,
             image: v.image,
             route: v.route,
         };
@@ -504,9 +563,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const addEarning = async (e: Omit<EarningEntry, 'id'>) => {
         const payload = {
+            driver_id: user?.id || null,
             date: e.date,
             amount: e.amount,
-            route: e.route,
+            route_from: e.route.from,
+            route_to: e.route.to,
             vehicle_plate: e.vehiclePlate,
             status: e.status,
             trips: e.trips,

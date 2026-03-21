@@ -25,16 +25,39 @@ export default function JobsScreen() {
 
     const handleApply = async (jobId: string, ownerId: string, ownerName: string) => {
         const processApplication = async () => {
-            const { error } = await insforge.database.from('applications').insert({
-                job_id: jobId,
-                driver_id: user?.id,
-                owner_id: ownerId,
-                status: 'pending'
-            });
-            if (!error) {
+            try {
+                // 1. Insert application
+                const { error } = await insforge.database.from('applications').insert({
+                    job_id: jobId,
+                    driver_id: user?.id,
+                    owner_id: ownerId,
+                    status: 'pending'
+                });
+                if (error) throw error;
+
+                // 2. Increment applicant count on the job
+                const job = jobs.find(j => j.id === jobId);
+                await insforge.database.from('jobs')
+                    .update({ applicants: (job?.applicants || 0) + 1 })
+                    .eq('id', jobId);
+
+                // 3. Notify the owner
+                if (ownerId) {
+                    await insforge.database.from('notifications').insert({
+                        user_id: ownerId,
+                        type: 'application',
+                        title: 'New Driver Application',
+                        message: `${user?.name || 'A driver'} applied for your ${job?.route?.from || ''} → ${job?.route?.to || ''} position.`,
+                        data: { jobId, driverId: user?.id },
+                    });
+                }
+
                 setAppliedJobs((prev) => new Set(prev).add(jobId));
+                // Update local applicant count
+                setJobs(prev => prev.map(j => j.id === jobId ? { ...j, applicants: (j.applicants || 0) + 1 } : j));
                 showAlert('Application Sent! ✅', 'The owner will review your profile and get back to you.');
-            } else {
+            } catch (err) {
+                console.error('Application error:', err);
                 showAlert('Error', 'Failed to send application. Please try again.');
             }
         };
@@ -62,15 +85,23 @@ export default function JobsScreen() {
     };
 
     useEffect(() => {
-        async function fetchJobs() {
+        async function fetchData() {
             setIsLoading(true);
             try {
-                const [jobsRes, usersRes] = await Promise.all([
+                const [jobsRes, usersRes, appsRes] = await Promise.all([
                     insforge.database.from('jobs').select('*').eq('status', 'open'),
-                    insforge.database.from('users').select('id, name, avatar, rating')
+                    insforge.database.from('users').select('id, name, avatar, rating'),
+                    user?.id
+                        ? insforge.database.from('applications').select('job_id').eq('driver_id', user.id)
+                        : Promise.resolve({ data: [], error: null }),
                 ]);
 
                 if (jobsRes.error) throw jobsRes.error;
+
+                // Pre-populate applied jobs set
+                if (appsRes.data) {
+                    setAppliedJobs(new Set(appsRes.data.map((a: any) => a.job_id)));
+                }
 
                 const usersMap = new Map((usersRes.data || []).map((u: any) => [u.id, u]));
 
@@ -78,6 +109,7 @@ export default function JobsScreen() {
                     const owner = (usersMap.get(j.owner_id) || {}) as any;
                     return {
                         id: j.id,
+                        ownerId: j.owner_id,
                         ownerName: owner?.name || 'Unknown',
                         ownerRating: owner?.rating || 5.0,
                         ownerAvatar: owner?.avatar || '',
@@ -103,8 +135,8 @@ export default function JobsScreen() {
             }
         }
 
-        fetchJobs();
-    }, []);
+        fetchData();
+    }, [user]);
 
     const filters = [
         { id: 'all', label: 'All Jobs' },
@@ -114,6 +146,17 @@ export default function JobsScreen() {
     ];
 
     const filteredJobs = jobs.filter((job) => {
+        // Search filter
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            const matchesSearch =
+                (job.route?.from || '').toLowerCase().includes(q) ||
+                (job.route?.to || '').toLowerCase().includes(q) ||
+                (job.vehicleType || '').toLowerCase().includes(q) ||
+                (job.ownerName || '').toLowerCase().includes(q);
+            if (!matchesSearch) return false;
+        }
+        // Tab filter
         if (activeFilter === 'match') return job.isSmartMatch;
         if (activeFilter === 'kingston') return job.route.from === 'Kingston';
         if (activeFilter === 'mobay') return job.route.from === 'Montego Bay' || job.route.to === 'Montego Bay';
