@@ -126,12 +126,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
                         // Notify owners of suspended vehicles
                         const ownerNotifs = toSuspend.map(v => ({
                             user_id: v.ownerId,
-                            type: 'vehicle_expiry',
                             title: 'Vehicle Suspended',
                             message: `Your vehicle ${v.make} ${v.model} (${v.plate}) has been suspended due to expired documents. Please upload renewed documents to reactivate.`,
                             data: { vehicleId: v.id },
                         }));
-                        await insforge.database.from('notifications').insert(ownerNotifs);
+                        const ownerNotifsWithType = ownerNotifs.map(n => ({ ...n, type: 'system', is_read: false }));
+                        await insforge.database.from('notifications').insert(ownerNotifsWithType);
                     }
 
                     // Update local state with corrected statuses

@@ -132,9 +132,21 @@ export default function ComposeAlertPage() {
 
             // 3. Create per-user notification records so the mobile app can display them
             if (targetUserIds.length > 0) {
+                // Map admin categories to valid DB notification types
+                const categoryTypeMap: Record<string, string> = {
+                    announcement: 'alert',
+                    compliance: 'alert',
+                    safety: 'alert',
+                    opportunity: 'alert',
+                    promotion: 'alert',
+                    emergency: 'alert',
+                    account: 'system',
+                };
+                const notifType = categoryTypeMap[category] || 'alert';
+
                 const notificationRows = targetUserIds.map(userId => ({
                     user_id: userId,
-                    type: category,
+                    type: notifType,
                     title,
                     message: body,
                     is_read: false,

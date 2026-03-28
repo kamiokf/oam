@@ -90,11 +90,10 @@ export default function DriverDashboard() {
                     const iconMap: Record<string, { icon: string; color: string }> = {
                         payment: { icon: 'cash', color: Colors.success },
                         application_update: { icon: 'checkmark-circle', color: Colors.success },
-                        application: { icon: 'document', color: Colors.info },
-                        compliance: { icon: 'shield-checkmark', color: Colors.warning },
-                        safety: { icon: 'alert-circle', color: Colors.error },
-                        announcement: { icon: 'megaphone', color: Colors.info },
-                        account: { icon: 'person', color: Colors.primary },
+                        alert: { icon: 'megaphone', color: Colors.info },
+                        system: { icon: 'settings', color: Colors.primary },
+                        referral: { icon: 'gift', color: Colors.secondary },
+                        dispute: { icon: 'shield-checkmark', color: Colors.warning },
                     };
                     const now = Date.now();
                     setRecentActivity((notifData || []).map(n => {

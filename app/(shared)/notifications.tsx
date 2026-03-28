@@ -21,16 +21,12 @@ interface Notification {
 }
 
 const typeIcons: Record<string, { icon: string; color: string }> = {
-    application: { icon: 'document-text', color: Colors.info },
-    application_update: { icon: 'checkmark-circle', color: Colors.success },
-    account: { icon: 'person', color: Colors.primary },
-    announcement: { icon: 'megaphone', color: Colors.info },
-    compliance: { icon: 'shield-checkmark', color: Colors.warning },
-    safety: { icon: 'alert-circle', color: Colors.error },
-    opportunity: { icon: 'flash', color: Colors.secondary },
-    promotion: { icon: 'gift', color: Colors.primary },
-    emergency: { icon: 'warning', color: Colors.error },
     payment: { icon: 'cash', color: Colors.success },
+    application_update: { icon: 'checkmark-circle', color: Colors.success },
+    alert: { icon: 'megaphone', color: Colors.info },
+    system: { icon: 'settings', color: Colors.primary },
+    referral: { icon: 'gift', color: Colors.secondary },
+    dispute: { icon: 'shield-checkmark', color: Colors.warning },
 };
 
 function timeAgo(dateStr: string): string {
