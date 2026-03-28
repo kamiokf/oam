@@ -47,6 +47,7 @@ export default function ComposeAlertPage() {
     const [channels, setChannels] = useState({ push: true, in_app: true, sms: false });
 
     const [sent, setSent] = useState(false);
+    const [notifResult, setNotifResult] = useState<{ count: number; error?: string } | null>(null);
 
     const selectedUser = allUsers.find(u => u.id === selectedUserId);
     const filteredUsers = userSearch ? allUsers.filter(u => u.name.toLowerCase().includes(userSearch.toLowerCase()) || (u.phone && u.phone.includes(userSearch))) : allUsers.slice(0, 5);
@@ -150,9 +151,16 @@ export default function ComposeAlertPage() {
                     .insert(notificationRows);
 
                 if (notifError) {
+                    const msg = typeof notifError === 'object' && notifError !== null
+                        ? (notifError as any).message || (notifError as any).details || JSON.stringify(notifError)
+                        : String(notifError);
                     console.error('Failed to create user notifications:', notifError);
-                    // Alert was saved — warn but don't block success
+                    setNotifResult({ count: 0, error: msg });
+                } else {
+                    setNotifResult({ count: targetUserIds.length });
                 }
+            } else {
+                setNotifResult({ count: 0, error: 'No matching users found for this target' });
             }
 
             setSent(true);
@@ -170,9 +178,20 @@ export default function ComposeAlertPage() {
                         <Check size={32} color="var(--success)" />
                     </div>
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 8 }}>Alert Sent Successfully!</h2>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: 12 }}>
                         Your alert has been sent to {recipientCount} recipient{recipientCount !== 1 ? 's' : ''}.
                     </p>
+                    {notifResult && (
+                        <div style={{
+                            padding: '10px 14px', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: '0.82rem',
+                            background: notifResult.error ? 'var(--error-muted)' : 'var(--success-muted)',
+                            color: notifResult.error ? 'var(--error)' : 'var(--success)',
+                        }}>
+                            {notifResult.error
+                                ? `⚠️ In-app notifications failed: ${notifResult.error}`
+                                : `✓ ${notifResult.count} in-app notification${notifResult.count !== 1 ? 's' : ''} created`}
+                        </div>
+                    )}
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                         <Link href="/alerts" className="btn btn-secondary">View All Alerts</Link>
                         <button className="btn btn-primary" onClick={() => { setSent(false); setStep(1); setTitle(''); setBody(''); }}>

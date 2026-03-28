@@ -49,6 +49,7 @@ export default function NotificationsScreen() {
     const router = useRouter();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     const fetchNotifications = useCallback(async () => {
         if (!user?.id) {
@@ -63,10 +64,18 @@ export default function NotificationsScreen() {
                 .order('created_at', { ascending: false })
                 .limit(50);
 
-            if (!error && data) {
+            if (error) {
+                const msg = typeof error === 'object' && error !== null
+                    ? (error as any).message || (error as any).details || JSON.stringify(error)
+                    : String(error);
+                setFetchError(msg);
+                console.error('Notifications fetch error:', error);
+            } else if (data) {
                 setNotifications(data as Notification[]);
+                setFetchError(null);
             }
-        } catch (err) {
+        } catch (err: any) {
+            setFetchError(err?.message || String(err));
             console.error('Failed to load notifications:', err);
         } finally {
             setIsLoading(false);
@@ -133,8 +142,16 @@ export default function NotificationsScreen() {
                 </TouchableOpacity>
             )}
 
+            {/* Error state */}
+            {fetchError && (
+                <View style={styles.errorState}>
+                    <Ionicons name="alert-circle" size={20} color={Colors.error} />
+                    <Text style={styles.errorText}>{fetchError}</Text>
+                </View>
+            )}
+
             {/* Empty state */}
-            {notifications.length === 0 && (
+            {!fetchError && notifications.length === 0 && (
                 <View style={styles.emptyState}>
                     <Ionicons name="notifications-off-outline" size={48} color={Colors.surfaceBorder} />
                     <Text style={styles.emptyTitle}>No Notifications</Text>
@@ -264,4 +281,14 @@ const styles = StyleSheet.create({
         borderRadius: 6,
     },
     priorityText: { ...Typography.small, fontSize: 9, fontWeight: '700', color: Colors.warning },
+    errorState: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+        padding: Spacing.md,
+        backgroundColor: Colors.errorMuted,
+        borderRadius: BorderRadius.md,
+        marginBottom: Spacing.lg,
+    },
+    errorText: { ...Typography.small, color: Colors.error, flex: 1 },
 });
