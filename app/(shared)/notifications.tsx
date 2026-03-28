@@ -168,6 +168,7 @@ export default function NotificationsScreen() {
                     <Text style={styles.emptyDesc}>
                         You{"'"}re all caught up! We{"'"}ll notify you when something important happens.
                     </Text>
+
                 </View>
             )}
 
