@@ -25,9 +25,9 @@ export async function POST(req: NextRequest) {
         }
 
         // Validate env vars
-        const adminEmail = process.env.ADMIN_EMAIL;
-        const adminPassword = process.env.ADMIN_PASSWORD;
-        const totpSecret = process.env.TOTP_SECRET;
+        const adminEmail = process.env.ADMIN_EMAIL?.trim();
+        const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+        const totpSecret = process.env.TOTP_SECRET?.trim();
 
         if (!adminEmail || !adminPassword || !totpSecret) {
             console.error('Missing ADMIN_EMAIL, ADMIN_PASSWORD, or TOTP_SECRET env vars');
@@ -37,8 +37,11 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Validate credentials
-        if (body.email !== adminEmail || body.password !== adminPassword) {
+        // Validate credentials (resilient to whitespace and capitalized emails)
+        if (
+            body.email?.trim().toLowerCase() !== adminEmail.toLowerCase() ||
+            body.password?.trim() !== adminPassword
+        ) {
             return NextResponse.json(
                 { error: 'Invalid credentials' },
                 { status: 401, headers }
