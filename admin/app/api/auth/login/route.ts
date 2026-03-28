@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '../../../../lib/ratelimit';
+import { verifySync } from 'otplib';
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
-        // For auth routes, limit by email if provided, otherwise fallback to IP
-        // This helps prevent brute force attacks against a single user account
+        // Rate limiting
         const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
         const identifier = body.email ? `auth_${body.email}` : ip;
-
-        // Apply the strict 'auth' tier limits (e.g., 5 requests per 5 minutes)
         const rateLimit = await checkRateLimit(identifier, 'auth');
 
         const headers = new Headers({
@@ -26,31 +24,52 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Validate credentials against environment variables
+        // Validate env vars
         const adminEmail = process.env.ADMIN_EMAIL;
         const adminPassword = process.env.ADMIN_PASSWORD;
+        const totpSecret = process.env.TOTP_SECRET;
 
-        if (!adminEmail || !adminPassword) {
-            console.error('ADMIN_EMAIL or ADMIN_PASSWORD environment variables not set');
+        if (!adminEmail || !adminPassword || !totpSecret) {
+            console.error('Missing ADMIN_EMAIL, ADMIN_PASSWORD, or TOTP_SECRET env vars');
             return NextResponse.json(
                 { error: 'Server configuration error' },
                 { status: 500, headers }
             );
         }
 
-        if (body.email === adminEmail && body.password === adminPassword) {
+        // Validate credentials
+        if (body.email !== adminEmail || body.password !== adminPassword) {
             return NextResponse.json(
-                { message: 'Authentication successful', token: 'admin-session-token' },
-                { status: 200, headers }
+                { error: 'Invalid credentials' },
+                { status: 401, headers }
+            );
+        }
+
+        // Validate TOTP code
+        const totpCode = body.totpCode;
+        if (!totpCode || typeof totpCode !== 'string' || totpCode.length !== 6) {
+            return NextResponse.json(
+                { error: 'Invalid 2FA code' },
+                { status: 401, headers }
+            );
+        }
+
+        const isValid = verifySync({ token: totpCode, secret: totpSecret });
+
+        if (!isValid) {
+            return NextResponse.json(
+                { error: 'Invalid 2FA code. Please check your authenticator app.' },
+                { status: 401, headers }
             );
         }
 
         return NextResponse.json(
-            { error: 'Invalid credentials' },
-            { status: 401, headers }
+            { message: 'Authentication successful', token: 'admin-session-token' },
+            { status: 200, headers }
         );
 
     } catch (e) {
+        console.error('Login error:', e);
         return NextResponse.json(
             { error: 'Bad request' },
             { status: 400 }
