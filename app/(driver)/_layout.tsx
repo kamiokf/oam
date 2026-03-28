@@ -5,8 +5,11 @@ import { Typography } from '../../constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
 import { RoleSwitcher } from '../../components/layout/RoleSwitcher';
 import { View, StyleSheet, Platform } from 'react-native';
+import { useUnreadNotifications } from '../../hooks/useUnreadNotifications';
 
 export default function DriverLayout() {
+    const unreadCount = useUnreadNotifications();
+
     return (
         <Tabs
             screenOptions={{
@@ -60,6 +63,17 @@ export default function DriverLayout() {
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="calendar" size={22} color={color} />
                     ),
+                }}
+            />
+            <Tabs.Screen
+                name="notifications"
+                options={{
+                    title: 'Alerts',
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="notifications" size={22} color={color} />
+                    ),
+                    tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+                    tabBarBadgeStyle: { backgroundColor: Colors.error, fontSize: 10 },
                 }}
             />
             <Tabs.Screen

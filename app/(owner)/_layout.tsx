@@ -4,8 +4,11 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { useUnreadNotifications } from '../../hooks/useUnreadNotifications';
 
 export default function OwnerLayout() {
+    const unreadCount = useUnreadNotifications();
+
     return (
         <Tabs
             screenOptions={{
@@ -51,6 +54,15 @@ export default function OwnerLayout() {
                 options={{
                     title: 'Jobs',
                     tabBarIcon: ({ color }) => <Ionicons name="document-text" size={22} color={color} />,
+                }}
+            />
+            <Tabs.Screen
+                name="notifications"
+                options={{
+                    title: 'Alerts',
+                    tabBarIcon: ({ color }) => <Ionicons name="notifications" size={22} color={color} />,
+                    tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+                    tabBarBadgeStyle: { backgroundColor: Colors.error, fontSize: 10 },
                 }}
             />
             <Tabs.Screen
