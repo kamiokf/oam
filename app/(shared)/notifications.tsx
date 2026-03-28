@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -51,11 +52,14 @@ export default function NotificationsScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
 
-    const fetchNotifications = useCallback(async () => {
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const fetchNotifications = useCallback(async (silent = false) => {
         if (!user?.id) {
             setIsLoading(false);
             return;
         }
+        if (!silent) setIsLoading(true);
         try {
             const { data, error } = await insforge.database
                 .from('notifications')
@@ -79,11 +83,20 @@ export default function NotificationsScreen() {
             console.error('Failed to load notifications:', err);
         } finally {
             setIsLoading(false);
+            setIsRefreshing(false);
         }
     }, [user?.id]);
 
-    useEffect(() => {
-        fetchNotifications();
+    // Refetch every time the screen comes into focus (handles tab switching)
+    useFocusEffect(
+        useCallback(() => {
+            fetchNotifications();
+        }, [fetchNotifications])
+    );
+
+    const handleRefresh = useCallback(() => {
+        setIsRefreshing(true);
+        fetchNotifications(true);
     }, [fetchNotifications]);
 
     const markAsRead = async (notifId: string) => {
@@ -133,6 +146,7 @@ export default function NotificationsScreen() {
         <ScreenWrapper
             title="Notifications"
             subtitle={unreadCount > 0 ? `${unreadCount} new` : 'All caught up'}
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />}
         >
             {/* Mark All Read Header */}
             {unreadCount > 0 && (

@@ -13,6 +13,7 @@ interface ScreenWrapperProps {
     scrollable?: boolean;
     padded?: boolean;
     style?: ViewStyle;
+    refreshControl?: React.ReactElement;
 }
 
 export function ScreenWrapper({
@@ -23,6 +24,7 @@ export function ScreenWrapper({
     scrollable = true,
     padded = true,
     style,
+    refreshControl,
 }: ScreenWrapperProps) {
     const insets = useSafeAreaInsets();
 
@@ -43,6 +45,7 @@ export function ScreenWrapper({
                     style={styles.scrollView}
                     contentContainerStyle={[styles.scrollContent, padded && styles.padded]}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={refreshControl}
                 >
                     {children}
                 </ScrollView>
