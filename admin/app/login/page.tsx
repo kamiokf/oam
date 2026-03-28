@@ -174,7 +174,7 @@ export default function LoginPage() {
                                     autoFocus
                                     style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.3em', fontWeight: 700 }}
                                 />
-                                <p className="form-hint">Enter any 6 digits for demo purposes</p>
+                                <p className="form-hint">Open your authenticator app for the code</p>
                             </div>
                             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                                 <button

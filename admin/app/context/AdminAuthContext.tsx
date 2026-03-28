@@ -110,10 +110,10 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     const login = useCallback(async (email: string, password: string, totpCode: string) => {
         setIsLoading(true);
 
-        // Mock 2FA — accept any 6-digit code
+        // Basic client-side format check
         if (totpCode.length !== 6 || !/^\d+$/.test(totpCode)) {
             setIsLoading(false);
-            return { success: false, error: 'Invalid 2FA code. Enter a 6-digit code.' };
+            return { success: false, error: 'Enter a valid 6-digit code.' };
         }
 
         // Validate credentials via secure API route (checks env vars server-side)
@@ -121,7 +121,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
             const res = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ email, password, totpCode }),
             });
 
             if (res.status === 429) {
