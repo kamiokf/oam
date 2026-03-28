@@ -137,6 +137,7 @@ export default function ComposeAlertPage() {
                     type: category,
                     title,
                     message: body,
+                    is_read: false,
                     data: {
                         category,
                         priority,
@@ -146,18 +147,18 @@ export default function ComposeAlertPage() {
                     },
                 }));
 
-                const { error: notifError } = await insforge.database
-                    .from('notifications')
-                    .insert(notificationRows);
+                const res = await fetch('/api/notifications/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rows: notificationRows }),
+                });
+                const json = await res.json();
 
-                if (notifError) {
-                    const msg = typeof notifError === 'object' && notifError !== null
-                        ? (notifError as any).message || (notifError as any).details || JSON.stringify(notifError)
-                        : String(notifError);
-                    console.error('Failed to create user notifications:', notifError);
-                    setNotifResult({ count: 0, error: msg });
+                if (!res.ok) {
+                    console.error('Failed to create user notifications:', json.error);
+                    setNotifResult({ count: 0, error: json.error || 'Unknown server error' });
                 } else {
-                    setNotifResult({ count: targetUserIds.length });
+                    setNotifResult({ count: json.count });
                 }
             } else {
                 setNotifResult({ count: 0, error: 'No matching users found for this target' });
