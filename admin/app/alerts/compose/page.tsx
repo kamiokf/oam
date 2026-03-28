@@ -69,6 +69,8 @@ export default function ComposeAlertPage() {
     const handleSend = async () => {
         if (!admin) return;
 
+        const activeChannels = Object.keys(channels).filter(k => (channels as any)[k]);
+
         const newAlert = {
             title,
             body_rich: `<p>${body}</p>`,
@@ -78,7 +80,7 @@ export default function ComposeAlertPage() {
             cta_label: ctaLabel || null,
             cta_destination: ctaDestination || null,
             targeting_summary: targetType === 'individual' && selectedUser ? `Individual: ${selectedUser.name}` : `Target: ${targetType}`,
-            channels: Object.keys(channels).filter(k => (channels as any)[k]),
+            channels: `{${activeChannels.join(',')}}`,
             status: 'sent',
             recipient_count: recipientCount,
             created_by: admin.id,
@@ -86,15 +88,77 @@ export default function ComposeAlertPage() {
         };
 
         try {
+            // 1. Save alert record (admin log)
             const { error } = await insforge.database
                 .from('alerts')
                 .insert([newAlert]);
 
-            if (error) throw error;
+            if (error) {
+                console.error('Alert insert error:', error);
+                const msg = typeof error === 'object' && error !== null
+                    ? (error as any).message || (error as any).details || JSON.stringify(error)
+                    : String(error);
+                alert(`Failed to send alert: ${msg}`);
+                return;
+            }
+
+            // 2. Determine which users should receive this notification
+            let targetUserIds: string[] = [];
+            if (targetType === 'individual' && selectedUserId) {
+                targetUserIds = [selectedUserId];
+            } else if (targetType === 'all') {
+                targetUserIds = allUsers.map(u => u.id);
+            } else if (targetType === 'drivers') {
+                targetUserIds = allUsers.filter(u => u.role === 'driver' || u.role === 'dual').map(u => u.id);
+            } else if (targetType === 'owners') {
+                targetUserIds = allUsers.filter(u => u.role === 'owner' || u.role === 'dual').map(u => u.id);
+            } else if (targetType === 'unverified') {
+                targetUserIds = allUsers.filter(u => u.verification_tier === 'registered').map(u => u.id);
+            } else if (targetType === 'expiring') {
+                // allUsers doesn't include document expiry data — fetch separately
+                try {
+                    const { data: expiringDocs } = await insforge.database
+                        .from('user_documents')
+                        .select('user_id')
+                        .lte('expires_at', new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString());
+                    if (expiringDocs) {
+                        targetUserIds = [...new Set(expiringDocs.map((d: any) => d.user_id))];
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch expiring document users:', err);
+                }
+            }
+
+            // 3. Create per-user notification records so the mobile app can display them
+            if (targetUserIds.length > 0) {
+                const notificationRows = targetUserIds.map(userId => ({
+                    user_id: userId,
+                    type: category,
+                    title,
+                    message: body,
+                    data: {
+                        category,
+                        priority,
+                        cta_label: ctaLabel || null,
+                        cta_destination: ctaDestination || null,
+                        sent_by: admin.fullName,
+                    },
+                }));
+
+                const { error: notifError } = await insforge.database
+                    .from('notifications')
+                    .insert(notificationRows);
+
+                if (notifError) {
+                    console.error('Failed to create user notifications:', notifError);
+                    // Alert was saved — warn but don't block success
+                }
+            }
+
             setSent(true);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to send alert:', err);
-            alert('Failed to send alert');
+            alert(`Failed to send alert: ${err?.message || err}`);
         }
     };
 
