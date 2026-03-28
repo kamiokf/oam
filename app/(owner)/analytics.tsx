@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { SectionHeader } from '../../components/layout/SectionHeader';
@@ -9,24 +9,14 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/formatting';
 import Svg, { Rect, Text as SvgText, Line } from 'react-native-svg';
+import { useData } from '../../context/DataContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 const chartWidth = screenWidth - 80;
 
-const revenueData = {
-    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-    values: [62500, 58200, 71000, 65800, 69200, 73500, 48000],
-};
-
-const vehiclePerformance = [
-    { name: 'Toyota Hiace (CF 1234)', revenue: 18500, utilization: 92, trips: 24 },
-    { name: 'Toyota Coaster (PD 5678)', revenue: 32000, utilization: 88, trips: 8 },
-    { name: 'Honda Fit (CF 3456)', revenue: 12000, utilization: 85, trips: 18 },
-];
-
-function RevenueChart() {
-    const maxVal = Math.max(...revenueData.values);
-    const barWidth = (chartWidth - (revenueData.labels.length - 1) * 8) / revenueData.labels.length;
+function RevenueChart({ labels, values }: { labels: string[]; values: number[] }) {
+    const maxVal = Math.max(...values, 1);
+    const barWidth = (chartWidth - (labels.length - 1) * 8) / labels.length;
 
     return (
         <Svg width={chartWidth} height={200}>
@@ -43,11 +33,11 @@ function RevenueChart() {
                     strokeDasharray="4,4"
                 />
             ))}
-            {revenueData.values.map((val, i) => {
+            {values.map((val, i) => {
                 const barHeight = (val / maxVal) * 150;
                 const x = i * (barWidth + 8);
                 const y = 160 - barHeight;
-                const isHighest = val === Math.max(...revenueData.values);
+                const isHighest = val === Math.max(...values);
                 return (
                     <React.Fragment key={i}>
                         <Rect
@@ -60,7 +50,7 @@ function RevenueChart() {
                             opacity={isHighest ? 1 : 0.7}
                         />
                         <SvgText x={x + barWidth / 2} y={185} fontSize={10} fill={Colors.textMuted} textAnchor="middle">
-                            {revenueData.labels[i]}
+                            {labels[i]}
                         </SvgText>
                     </React.Fragment>
                 );
@@ -71,6 +61,43 @@ function RevenueChart() {
 
 export default function AnalyticsScreen() {
     const [period, setPeriod] = useState<'week' | 'month'>('week');
+    const { vehicles, earnings } = useData();
+
+    const revenueData = useMemo(() => {
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const today = new Date();
+        const labels: string[] = [];
+        const values: number[] = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+            labels.push(dayNames[d.getDay()]);
+            const dayTotal = earnings
+                .filter(e => e.date === dateStr)
+                .reduce((sum, e) => sum + Number(e.amount), 0);
+            values.push(dayTotal);
+        }
+        return { labels, values };
+    }, [earnings]);
+
+    const vehiclePerformance = useMemo(() => {
+        return vehicles.map(v => {
+            const vEarnings = earnings.filter(e => e.vehiclePlate === v.plate);
+            const totalRevenue = vEarnings.reduce((sum, e) => sum + Number(e.amount), 0);
+            const totalTrips = vEarnings.reduce((sum, e) => sum + (e.trips || 0), 0);
+            const daysLogged = vEarnings.length || 1;
+            const daysActive = vEarnings.filter(e => Number(e.amount) > 0).length;
+            const utilization = Math.min(Math.round((daysActive / Math.max(daysLogged, 7)) * 100), 100);
+            return {
+                name: `${v.make} ${v.model} (${v.plate})`,
+                revenue: v.dailyRevenue || Math.round(totalRevenue / daysLogged),
+                utilization: utilization || (v.status === 'active' ? 75 : 0),
+                trips: Math.round(totalTrips / daysLogged),
+            };
+        });
+    }, [vehicles, earnings]);
+
     const totalRevenue = revenueData.values.reduce((s, v) => s + v, 0);
     const avgDaily = Math.round(totalRevenue / 7);
 
@@ -109,7 +136,7 @@ export default function AnalyticsScreen() {
                     ))}
                 </View>
                 <View style={styles.chartContainer}>
-                    <RevenueChart />
+                    <RevenueChart labels={revenueData.labels} values={revenueData.values} />
                 </View>
             </Card>
 

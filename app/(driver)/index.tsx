@@ -30,6 +30,7 @@ export default function DriverDashboard() {
 
     const [summary, setSummary] = React.useState({ today: 0, thisWeek: 0, thisMonth: 0, pendingPayments: 0 });
     const [smartJobs, setSmartJobs] = React.useState<any[]>([]);
+    const [recentActivity, setRecentActivity] = React.useState<any[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
 
     React.useEffect(() => {
@@ -76,6 +77,34 @@ export default function DriverDashboard() {
                     };
                 });
                 setSmartJobs(mappedJobs);
+
+                // Fetch recent notifications as activity feed
+                if (user?.id) {
+                    const { data: notifData } = await insforge.database
+                        .from('notifications')
+                        .select('id, type, title, created_at')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false })
+                        .limit(3);
+
+                    const iconMap: Record<string, { icon: string; color: string }> = {
+                        payment: { icon: 'cash', color: Colors.success },
+                        application_update: { icon: 'checkmark-circle', color: Colors.success },
+                        application: { icon: 'document', color: Colors.info },
+                        compliance: { icon: 'shield-checkmark', color: Colors.warning },
+                        safety: { icon: 'alert-circle', color: Colors.error },
+                        announcement: { icon: 'megaphone', color: Colors.info },
+                        account: { icon: 'person', color: Colors.primary },
+                    };
+                    const now = Date.now();
+                    setRecentActivity((notifData || []).map(n => {
+                        const cfg = iconMap[n.type] || { icon: 'notifications', color: Colors.textMuted };
+                        const diff = now - new Date(n.created_at).getTime();
+                        const mins = Math.floor(diff / 60000);
+                        const time = mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.floor(mins / 60)}h ago` : `${Math.floor(mins / 1440)}d ago`;
+                        return { icon: cfg.icon, color: cfg.color, text: n.title, time };
+                    }));
+                }
 
             } catch (err) {
                 console.error("Dashboard fetch error:", err);
@@ -164,12 +193,10 @@ export default function DriverDashboard() {
             ))}
 
             {/* Recent Activity */}
+            {recentActivity.length > 0 && (
             <SectionHeader title="Recent Activity" style={styles.section} />
-            {[
-                { icon: 'checkmark-circle' as const, text: 'Earnings logged — J$8,500', time: '2h ago', color: Colors.success },
-                { icon: 'document' as const, text: 'Application submitted — Kingston → Montego Bay', time: '1d ago', color: Colors.info },
-                { icon: 'star' as const, text: 'New review received — 5 stars', time: '2d ago', color: Colors.secondary },
-            ].map((item, i) => (
+            )}
+            {recentActivity.map((item, i) => (
                 <View key={i} style={styles.activityItem}>
                     <View style={[styles.activityIcon, { backgroundColor: `${item.color}20` }]}>
                         <Ionicons name={item.icon} size={18} color={item.color} />

@@ -76,10 +76,13 @@ export default function ReferralsScreen() {
 
     const stats = getReferralStats(referrals, user?.id || '');
 
+    const myCode = referrals[0]?.referralCode
+        || (user?.name ? user.name.split(' ')[0].toUpperCase() + new Date().getFullYear() : 'CODE2026');
+
     const handleShare = async () => {
         try {
             await Share.share({
-                message: `Join One'N'Move — Jamaica's smart transport platform! Use my code DEVON2026 to sign up and we both earn a bonus. Download now: https://onenmove.app/refer/DEVON2026`,
+                message: `Join One'N'Move — Jamaica's smart transport platform! Use my code ${myCode} to sign up and we both earn a bonus. Download now: https://onenmove.web.app`,
             });
         } catch (e) { }
     };
