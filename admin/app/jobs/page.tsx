@@ -135,13 +135,13 @@ export default function JobsPage() {
                 ? `Your job posting for ${job.routeFrom} → ${job.routeTo} has been flagged by an admin.${reason ? ` Reason: ${reason}` : ''}`
                 : `Your job posting for ${job.routeFrom} → ${job.routeTo} has been removed by an admin.${reason ? ` Reason: ${reason}` : ''}`;
 
-            await insforge.database.from('notifications').insert({
+            await insforge.database.from('notifications').insert([{
                 user_id: job.ownerId,
                 type: 'job_moderation',
                 title: action === 'flag' ? 'Job Posting Flagged' : 'Job Posting Removed',
                 message: notifMsg,
                 data: { jobId: job.id, action: newStatus, reason },
-            });
+            }]);
 
             setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: newStatus } : j));
         } catch (err) {

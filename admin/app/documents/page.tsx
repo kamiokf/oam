@@ -114,13 +114,13 @@ export default function DocumentsPage() {
                     // Create notification for the user
                     await insforge.database
                         .from('notifications')
-                        .insert({
+                        .insert([{
                             user_id: selectedDoc.userId,
                             type: 'document_status',
                             title: 'Documents Verified!',
                             message: 'All your documents have been approved. Your account is now verified!',
                             data: { verificationTier: 'verified' },
-                        });
+                        }]);
                 }
             }
 
@@ -129,13 +129,13 @@ export default function DocumentsPage() {
                 const statusText = action === 'approve' ? 'approved' : 'rejected';
                 await insforge.database
                     .from('notifications')
-                    .insert({
+                    .insert([{
                         user_id: selectedDoc.userId,
                         type: 'document_status',
                         title: `Document ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
                         message: `Your ${selectedDoc.documentType} has been ${statusText}.${action === 'reject' && newReason ? ` Reason: ${newReason}` : ''}`,
                         data: { documentType: selectedDoc.documentType, status: statusText },
-                    });
+                    }]);
             }
         } catch (err) {
             console.error('Failed to update document status:', err);

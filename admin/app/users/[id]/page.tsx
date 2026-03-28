@@ -133,13 +133,13 @@ export default function UserDetailPage() {
 
             const msg = statusMessages[newStatus];
             if (msg) {
-                await insforge.database.from('notifications').insert({
+                await insforge.database.from('notifications').insert([{
                     user_id: user.id,
                     type: 'account_status',
                     title: msg.title,
                     message: msg.message,
                     data: { newStatus, reason },
-                });
+                }]);
             }
 
             // Update local state

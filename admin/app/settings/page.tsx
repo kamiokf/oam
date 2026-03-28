@@ -93,7 +93,7 @@ export default function SettingsPage() {
             } else {
                 const { data, error: err } = await insforge.database
                     .from('platform_settings')
-                    .insert(payload)
+                    .insert([payload])
                     .select('id')
                     .single();
                 if (data?.id) setSettingsId(data.id);

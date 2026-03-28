@@ -88,7 +88,7 @@ export default function ComposeAlertPage() {
         try {
             const { error } = await insforge.database
                 .from('alerts')
-                .insert(newAlert);
+                .insert([newAlert]);
 
             if (error) throw error;
             setSent(true);
