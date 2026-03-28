@@ -130,8 +130,9 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
                 setIsLoading(false);
-                return { success: false, error: 'Invalid email or password' };
+                return { success: false, error: data.error || 'Login failed' };
             }
         } catch {
             setIsLoading(false);
