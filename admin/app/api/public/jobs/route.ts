@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
     const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
 
     // Apply the 'public' tier limits (e.g., 100 requests per minute)
-    const rateLimit = await checkRateLimit(ip, 'public');
+    const rateLimit = checkRateLimit(ip, 'public');
 
     const headers = new Headers({
         'X-RateLimit-Limit': rateLimit.limit.toString(),

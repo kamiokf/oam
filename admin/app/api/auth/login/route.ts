@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
         // Rate limiting
         const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
         const identifier = body.email ? `auth_${body.email}` : ip;
-        const rateLimit = await checkRateLimit(identifier, 'auth');
+        const rateLimit = checkRateLimit(identifier, 'auth');
 
         const headers = new Headers({
             'X-RateLimit-Limit': rateLimit.limit.toString(),

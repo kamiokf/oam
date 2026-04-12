@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@insforge/sdk';
+import { checkRateLimit } from '../../../../lib/ratelimit';
 
 export async function POST(req: NextRequest) {
     try {
+        const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
+        const rateLimit = checkRateLimit(ip, 'heavy');
+        if (!rateLimit.success) {
+            return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+        }
+
         const { rows } = await req.json();
 
         if (!Array.isArray(rows) || rows.length === 0) {
