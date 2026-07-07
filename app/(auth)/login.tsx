@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
+import { formatJamaicanPhone, JAMAICA_AREA_CODES, JamaicaAreaCode } from '../../utils/formatting';
 
 
 export default function LoginScreen() {
@@ -15,13 +16,20 @@ export default function LoginScreen() {
     const params = useLocalSearchParams<{ role: string }>();
     const { login, isLoading } = useAuth();
     const [phone, setPhone] = useState('');
+    const [areaCode, setAreaCode] = useState<JamaicaAreaCode>('876');
+    const [showAreaCodes, setShowAreaCodes] = useState(false);
     const role = params.role || 'driver';
 
     const handleContinue = async () => {
         if (phone.length >= 7) {
             // Normalize phone to match database storing format
-            const cleanPhone = phone.replace(/\D/g, '');
-            const formattedPhone = `+1 876 ${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 7)}`;
+            const formattedPhone = formatJamaicanPhone(phone, areaCode);
+            if (!formattedPhone) {
+                const msg = 'Please enter a valid 7-digit Jamaican phone number.';
+                if (Platform.OS === 'web') window.alert(msg);
+                else Alert.alert('Invalid number', msg);
+                return;
+            }
 
             try {
                 await login(formattedPhone);
@@ -55,10 +63,34 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={styles.phoneInput}>
-                    <View style={styles.countryCode}>
-                        <Text style={styles.flag}>🇯🇲</Text>
-                        <Text style={styles.code}>+1 876</Text>
-                        <Ionicons name="chevron-down" size={16} color={Colors.textMuted} />
+                    <View>
+                        <TouchableOpacity
+                            style={styles.countryCode}
+                            onPress={() => setShowAreaCodes((v) => !v)}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={styles.flag}>🇯🇲</Text>
+                            <Text style={styles.code}>+1 {areaCode}</Text>
+                            <Ionicons name={showAreaCodes ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                        {showAreaCodes && (
+                            <View style={styles.areaCodeMenu}>
+                                {JAMAICA_AREA_CODES.map((code) => (
+                                    <TouchableOpacity
+                                        key={code}
+                                        style={[styles.areaCodeOption, code === areaCode && styles.areaCodeOptionActive]}
+                                        onPress={() => {
+                                            setAreaCode(code);
+                                            setShowAreaCodes(false);
+                                        }}
+                                    >
+                                        <Text style={[styles.code, code === areaCode && styles.areaCodeTextActive]}>
+                                            +1 {code}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
                     </View>
                     <Input
                         placeholder="555 0100"
@@ -145,6 +177,31 @@ const styles = StyleSheet.create({
     code: {
         ...Typography.bodyBold,
         color: Colors.textPrimary,
+    },
+    areaCodeMenu: {
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        right: 0,
+        marginTop: Spacing.xs,
+        backgroundColor: Colors.surfaceLight,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        borderColor: Colors.surfaceBorder,
+        overflow: 'hidden',
+        zIndex: 10,
+        elevation: 10,
+    },
+    areaCodeOption: {
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
+        alignItems: 'center',
+    },
+    areaCodeOptionActive: {
+        backgroundColor: Colors.primaryMuted,
+    },
+    areaCodeTextActive: {
+        color: Colors.primaryLight,
     },
     input: {
         flex: 1,

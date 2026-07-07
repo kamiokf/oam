@@ -10,6 +10,7 @@ import { Spacing, BorderRadius } from '../../constants/Spacing';
 import { Ionicons } from '@expo/vector-icons';
 import { useData } from '../../context/DataContext';
 import { showAlert } from '../../utils/alert';
+import { formatJamaicanPhone } from '../../utils/formatting';
 
 const LICENSE_TYPES = ['PPV', 'General'];
 
@@ -32,10 +33,18 @@ export default function AddDriverScreen() {
 
         const initials = name.trim().split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
+        // Accepts 876 and 658 numbers; falls back to the raw input for
+        // anything already in international format.
+        const formattedPhone = phone.startsWith('+') ? phone : formatJamaicanPhone(phone);
+        if (!formattedPhone) {
+            showAlert('Invalid Phone', 'Please enter a valid Jamaican phone number (area code 876 or 658).');
+            return;
+        }
+
         await addDriver({
             name: name.trim(),
             avatar: initials,
-            phone: phone.startsWith('+') ? phone : `+1 876 ${phone}`,
+            phone: formattedPhone,
             rating: 0,
             totalTrips: 0,
             experience: parseInt(experience) || 0,
