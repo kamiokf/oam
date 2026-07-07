@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function VerifyScreen() {
     const router = useRouter();
     const params = useLocalSearchParams<{ role: string; phone: string }>();
-    const { verifyOtp, isLoading, isNewUser, user } = useAuth();
+    const { verifyOtp, isLoading, isNewUser } = useAuth();
     const [code, setCode] = useState(['', '', '', '', '', '']);
     const inputRefs = useRef<(TextInput | null)[]>([]);
     const [error, setError] = useState('');
@@ -71,14 +71,16 @@ export default function VerifyScreen() {
 
         const fullCode = code.join('');
         if (fullCode.length === 6) {
-            const success = await verifyOtp(fullCode);
+            const { success, user: verifiedUser } = await verifyOtp(fullCode);
             if (success) {
                 if (isNewUser) {
-                    // Route to registration (new user flow)
+                    // Route to registration (new user flow); the role chosen
+                    // on the welcome screen seeds the registration form.
                     router.replace(`/(auth)/register-details?role=${role}&phone=${encodeURIComponent(phone)}`);
                 } else {
-                    // Existing user
-                    router.replace(user?.role === 'owner' ? '/(owner)' : '/(driver)');
+                    // Existing user: route by their registered role, not the
+                    // welcome-screen choice.
+                    router.replace(verifiedUser?.role === 'owner' ? '/(owner)' : '/(driver)');
                 }
             } else {
                 const newAttempts = attempts + 1;

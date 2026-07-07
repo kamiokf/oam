@@ -57,7 +57,7 @@ interface AuthContextType {
     isLoading: boolean;
     isNewUser: boolean;
     login: (phone: string) => Promise<void>;
-    verifyOtp: (code: string) => Promise<boolean>;
+    verifyOtp: (code: string) => Promise<{ success: boolean; user: AuthUser | null }>;
     setUserRole: (role: UserRole) => void;
     updateProfile: (data: Partial<AuthUser>) => void;
     register: (data: Partial<AuthUser>) => Promise<void>;
@@ -71,7 +71,7 @@ const AuthContext = createContext<AuthContextType>({
     isLoading: true,
     isNewUser: true,
     login: async () => { },
-    verifyOtp: async () => false,
+    verifyOtp: async () => ({ success: false, user: null }),
     setUserRole: () => { },
     updateProfile: () => { },
     register: async () => { },
@@ -85,6 +85,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isNewUser, setIsNewUser] = useState(true);
     const confirmationRef = useRef<any>(null);
     const recaptchaVerifierRef = useRef<any>(null);
+    // Looked up during login() but only committed to state/storage after the
+    // OTP is verified — knowing a phone number must not grant a session.
+    const pendingUserRef = useRef<AuthUser | null>(null);
 
     // Initial session load
     useEffect(() => {
@@ -116,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (error || !data) {
                 // Not found, user is new
+                pendingUserRef.current = null;
                 setIsNewUser(true);
             } else {
                 const dbUser = data;
@@ -143,9 +147,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     routeExperience: dbUser.route_experience || undefined,
                     availableForHire: dbUser.available_for_hire ?? undefined,
                 };
-                setUser(userObj);
+                pendingUserRef.current = userObj;
                 setIsNewUser(false);
-                AsyncStorage.setItem('authUser', JSON.stringify(userObj)).catch(console.error);
             }
 
             // 2. Send OTP via Firebase Phone Auth
@@ -185,15 +188,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             if (!confirmationRef.current) {
                 console.error('No confirmation result found. Did you call login() first?');
-                return false;
+                return { success: false, user: null };
             }
             await confirmationRef.current.confirm(code);
-            // If confirm() doesn't throw, the code is valid
+            // If confirm() doesn't throw, the code is valid — commit the
+            // session for existing users now (null for new registrations).
             confirmationRef.current = null;
-            return true;
+            const verifiedUser = pendingUserRef.current;
+            pendingUserRef.current = null;
+            if (verifiedUser) {
+                setUser(verifiedUser);
+                AsyncStorage.setItem('authUser', JSON.stringify(verifiedUser)).catch(console.error);
+            }
+            return { success: true, user: verifiedUser };
         } catch (error) {
             console.error('OTP verification failed:', error);
-            return false;
+            return { success: false, user: null };
         } finally {
             setIsLoading(false);
         }
@@ -296,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setIsNewUser(true);
         confirmationRef.current = null;
+        pendingUserRef.current = null;
         AsyncStorage.removeItem('authUser').catch(console.error);
         if (Platform.OS === 'web') {
             webAuth?.signOut().catch(console.error);

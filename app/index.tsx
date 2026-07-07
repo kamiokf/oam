@@ -28,6 +28,8 @@ export default function SplashScreen() {
             }),
         ]).start();
 
+        // Branding pause: this screen is also the app's central router — every
+        // cold start and role-based redirect passes through here after 2s.
         const timeout = setTimeout(() => {
             if (isAuthenticated && user) {
                 if (user.role === 'owner') {

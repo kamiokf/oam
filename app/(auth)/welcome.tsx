@@ -32,7 +32,8 @@ export default function WelcomeScreen() {
                 <Text style={styles.getStarted}>Welcome</Text>
                 <Text style={styles.joinText}>Log in or join our community</Text>
 
-                {/* Driver CTA */}
+                {/* Driver CTA. The role param only seeds registration for new
+                    users — existing users are routed by their DB role after OTP. */}
                 <TouchableOpacity
                     style={styles.driverBtn}
                     activeOpacity={0.85}
