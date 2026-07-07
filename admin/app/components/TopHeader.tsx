@@ -42,7 +42,7 @@ export default function TopHeader() {
                 const { data } = await insforge.database
                     .from('notifications')
                     .select('id')
-                    .eq('read', false);
+                    .eq('is_read', false);
                 setUnreadCount(data?.length || 0);
             } catch {
                 // silently fail

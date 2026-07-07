@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, ViewStyle, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ViewStyle, StatusBar, RefreshControlProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -13,7 +13,7 @@ interface ScreenWrapperProps {
     scrollable?: boolean;
     padded?: boolean;
     style?: ViewStyle;
-    refreshControl?: React.ReactElement;
+    refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 export function ScreenWrapper({

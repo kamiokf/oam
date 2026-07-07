@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 
 export type ActiveView = 'driver' | 'owner';
@@ -19,29 +19,23 @@ const RoleContext = createContext<RoleContextType>({
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
     const { user } = useAuth();
-    const [activeView, setActiveView] = useState<ActiveView>('driver');
+    // Manual selection only applies to dual-role users; single-role users
+    // derive their view directly so it's correct on the very first render.
+    const [manualView, setManualView] = useState<ActiveView>('driver');
 
     // Derive isDualRole from the user's registered role
     const isDualRole = user?.role === 'both';
 
-    // Sync activeView when user logs in or role changes
-    useEffect(() => {
-        if (user) {
-            if (user.role === 'owner') {
-                setActiveView('owner');
-            } else if (user.role === 'driver') {
-                setActiveView('driver');
-            }
-            // If 'both', keep current activeView
-        }
-    }, [user?.role]);
+    const activeView: ActiveView = isDualRole
+        ? manualView
+        : user?.role === 'owner' ? 'owner' : 'driver';
 
     const switchRole = useCallback((role: ActiveView) => {
-        setActiveView(role);
+        setManualView(role);
     }, []);
 
     const toggleRole = useCallback(() => {
-        setActiveView((prev) => (prev === 'driver' ? 'owner' : 'driver'));
+        setManualView((prev) => (prev === 'driver' ? 'owner' : 'driver'));
     }, []);
 
     return (

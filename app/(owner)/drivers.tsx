@@ -46,7 +46,7 @@ export default function DriversScreen() {
                     <Text style={styles.summaryLabel}>Weekly Output</Text>
                 </Card>
                 <Card style={styles.summaryCard}>
-                    <Text style={styles.summaryValue}>{(activeDrivers.reduce((s, d) => s + d.rating, 0) / activeDrivers.length).toFixed(1)}</Text>
+                    <Text style={styles.summaryValue}>{activeDrivers.length ? (activeDrivers.reduce((s, d) => s + d.rating, 0) / activeDrivers.length).toFixed(1) : '—'}</Text>
                     <Text style={styles.summaryLabel}>Avg Rating</Text>
                 </Card>
             </View>

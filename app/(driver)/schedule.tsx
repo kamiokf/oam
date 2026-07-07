@@ -12,11 +12,28 @@ import { insforge } from '../../lib/insforge';
 import { useAuth } from '../../context/AuthContext';
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const currentWeekDates = [24, 25, 26, 27, 28, 1, 2];
+
+const toDateKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// Monday-based week containing today
+const getCurrentWeek = () => {
+    const today = new Date();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        return d;
+    });
+};
 
 export default function ScheduleScreen() {
     const { user } = useAuth();
-    const [selectedDay, setSelectedDay] = useState(27);
+    const week = React.useMemo(getCurrentWeek, []);
+    const todayKey = toDateKey(new Date());
+    const monthLabel = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const [selectedDay, setSelectedDay] = useState(todayKey);
     const [schedule, setSchedule] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -41,11 +58,13 @@ export default function ScheduleScreen() {
         fetchSchedule();
     }, [user?.id]);
 
+    const scheduleDateKey = (s: any) => String(s.date).slice(0, 10);
     const totalHours = schedule.reduce((sum, s) => sum + (s.status !== 'upcoming' ? s.hours : 0), 0);
+    const workedDays = schedule.filter((s) => s.status !== 'upcoming').length;
 
     if (isLoading) {
         return (
-            <ScreenWrapper title="Schedule" subtitle="February 2026">
+            <ScreenWrapper title="Schedule" subtitle={monthLabel}>
                 <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
                     <Text style={{ ...Typography.body, color: Colors.textMuted }}>Loading schedule...</Text>
                 </View>
@@ -54,28 +73,28 @@ export default function ScheduleScreen() {
     }
 
     return (
-        <ScreenWrapper title="Schedule" subtitle="February 2026">
+        <ScreenWrapper title="Schedule" subtitle={monthLabel}>
             {/* Calendar Strip */}
             <Card style={styles.calendarCard}>
                 <View style={styles.calendarStrip}>
                     {weekDays.map((day, i) => {
-                        const date = currentWeekDates[i];
-                        const isSelected = date === selectedDay;
-                        const isToday = date === 27;
-                        const daySchedule = schedule.find((s) => s.date === date);
+                        const dateKey = toDateKey(week[i]);
+                        const isSelected = dateKey === selectedDay;
+                        const isToday = dateKey === todayKey;
+                        const daySchedule = schedule.find((s) => scheduleDateKey(s) === dateKey);
 
                         return (
                             <TouchableOpacity
                                 key={i}
                                 style={[styles.dayCol, isSelected && styles.dayColSelected]}
-                                onPress={() => setSelectedDay(date)}
+                                onPress={() => setSelectedDay(dateKey)}
                             >
                                 <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
                                     {day}
                                 </Text>
                                 <View style={[styles.dateCircle, isSelected && styles.dateCircleSelected, isToday && !isSelected && styles.dateCircleToday]}>
                                     <Text style={[styles.dateText, isSelected && styles.dateTextSelected]}>
-                                        {date}
+                                        {week[i].getDate()}
                                     </Text>
                                 </View>
                                 {daySchedule && (
@@ -108,7 +127,7 @@ export default function ScheduleScreen() {
                         <Ionicons name="trending-up" size={20} color={Colors.secondary} />
                     </View>
                     <Text style={styles.hoursLabel}>Avg/Day</Text>
-                    <Text style={styles.hoursValue}>{(totalHours / 4).toFixed(1)}h</Text>
+                    <Text style={styles.hoursValue}>{workedDays ? (totalHours / workedDays).toFixed(1) : '0.0'}h</Text>
                 </Card>
                 <Card style={styles.hoursCard}>
                     <View style={[styles.hoursIconWrap, { backgroundColor: Colors.successMuted }]}>
@@ -122,7 +141,7 @@ export default function ScheduleScreen() {
             {/* Daily Schedule */}
             <SectionHeader title="Today's Schedule" style={styles.section} />
             {schedule
-                .filter((s) => s.date === selectedDay)
+                .filter((s) => scheduleDateKey(s) === selectedDay)
                 .map((shift) => (
                     <Card key={shift.id} variant={shift.status === 'active' ? 'highlighted' : 'default'} style={styles.shiftCard}>
                         <View style={styles.shiftHeader}>
@@ -158,10 +177,10 @@ export default function ScheduleScreen() {
             {/* All shifts this week */}
             <SectionHeader title="This Week" style={styles.section} />
             {schedule.map((shift) => (
-                <TouchableOpacity key={shift.id} style={styles.weekShift} onPress={() => setSelectedDay(shift.date)}>
-                    <View style={[styles.weekDayBadge, shift.date === selectedDay && styles.weekDayBadgeActive]}>
-                        <Text style={[styles.weekDayText, shift.date === selectedDay && styles.weekDayTextActive]}>
-                            {shift.day}
+                <TouchableOpacity key={shift.id} style={styles.weekShift} onPress={() => setSelectedDay(scheduleDateKey(shift))}>
+                    <View style={[styles.weekDayBadge, scheduleDateKey(shift) === selectedDay && styles.weekDayBadgeActive]}>
+                        <Text style={[styles.weekDayText, scheduleDateKey(shift) === selectedDay && styles.weekDayTextActive]}>
+                            {shift.day || new Date(scheduleDateKey(shift) + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
                         </Text>
                     </View>
                     <View style={styles.weekShiftInfo}>

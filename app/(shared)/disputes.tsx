@@ -36,7 +36,7 @@ export default function DisputesScreen() {
             setIsLoading(true);
             const { data, error } = await insforge.database
                 .from('disputes')
-                .select('*, filer:filed_by(name, avatar_url, role), target:filed_against(name, avatar_url, role)')
+                .select('*, filer:filed_by(name, avatar, role), target:filed_against(name, avatar, role)')
                 .or(`filed_by.eq.${user.id},filed_against.eq.${user.id}`)
                 .order('created_at', { ascending: false });
 

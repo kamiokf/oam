@@ -26,6 +26,19 @@ export interface Trip {
     notes?: string;
 }
 
+export const getTripStats = (trips: Trip[], driverId?: string) => {
+    const filtered = driverId ? trips.filter((t) => t.driverId === driverId) : trips;
+    const completed = filtered.filter((t) => t.status === 'completed');
+    return {
+        totalTrips: completed.length,
+        totalKm: Math.round(completed.reduce((s, t) => s + t.distanceKm, 0) * 10) / 10,
+        totalFare: completed.reduce((s, t) => s + t.fare, 0),
+        totalFuel: completed.reduce((s, t) => s + t.fuelEstimate, 0),
+        avgDuration: completed.length ? Math.round(completed.reduce((s, t) => s + (t.durationMinutes || 0), 0) / completed.length) : 0,
+        gpsVerifiedPct: completed.length ? Math.round((completed.filter((t) => t.gpsVerified).length / completed.length) * 100) : 0,
+    };
+};
+
 // Realistic Kingston-area GPS coordinates
 const GPS = {
     kingston: { lat: 18.0179, lng: -76.8099 },
