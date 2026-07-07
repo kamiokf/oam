@@ -9,12 +9,15 @@ import { Colors } from '../constants/Colors';
 // Route groups share URLs (e.g. /jobs exists in both (driver) and (owner)),
 // so guards must disable the inactive role's group for URLs to resolve correctly.
 function RootNavigator() {
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isBootstrapping } = useAuth();
     const { activeView } = useRole();
 
     // Wait for the stored session before mounting routes, so deep links
     // resolve against the correct guards instead of falling back to index.
-    if (isLoading) return null;
+    // Gate on isBootstrapping (initial load only), NOT isLoading — the latter
+    // also toggles during login(), which would unmount the screen (and the
+    // reCAPTCHA container it hosts) mid-flow.
+    if (isBootstrapping) return null;
 
     return (
         <Stack

@@ -55,6 +55,10 @@ interface AuthContextType {
     user: AuthUser | null;
     isAuthenticated: boolean;
     isLoading: boolean;
+    // True only until the stored session has been read on cold start. Distinct
+    // from isLoading, which also toggles during login/verify/register — gating
+    // navigation on isLoading would unmount screens mid-auth-action.
+    isBootstrapping: boolean;
     isNewUser: boolean;
     login: (phone: string) => Promise<void>;
     verifyOtp: (code: string) => Promise<{ success: boolean; user: AuthUser | null }>;
@@ -69,6 +73,7 @@ const AuthContext = createContext<AuthContextType>({
     user: null,
     isAuthenticated: false,
     isLoading: true,
+    isBootstrapping: true,
     isNewUser: true,
     login: async () => { },
     verifyOtp: async () => ({ success: false, user: null }),
@@ -82,6 +87,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [isLoading, setIsLoading] = useState(true); // Start loading to check session
+    const [isBootstrapping, setIsBootstrapping] = useState(true);
     const [isNewUser, setIsNewUser] = useState(true);
     const confirmationRef = useRef<any>(null);
     const recaptchaVerifierRef = useRef<any>(null);
@@ -102,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 console.error('Failed to load session from storage', e);
             } finally {
                 setIsLoading(false);
+                setIsBootstrapping(false);
             }
         };
         loadSession();
@@ -321,6 +328,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 user,
                 isAuthenticated: !!user,
                 isLoading,
+                isBootstrapping,
                 isNewUser,
                 login,
                 verifyOtp,
