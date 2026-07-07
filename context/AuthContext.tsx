@@ -163,12 +163,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const e164Phone = phone.replace(/\s/g, '');
 
             if (Platform.OS === 'web') {
-                // Web: Use Firebase JS SDK with RecaptchaVerifier
-                if (!recaptchaVerifierRef.current) {
-                    recaptchaVerifierRef.current = new WebRecaptchaVerifier(webAuth, 'recaptcha-container', {
-                        size: 'invisible',
-                    });
+                // Web: Firebase JS SDK RecaptchaVerifier. grecaptcha permanently
+                // marks a container element as "already rendered" (clearing its
+                // innerHTML or calling reset() is not enough), and the host View
+                // is the same DOM node across attempts — so we render into a
+                // brand-new child element each time to keep retries working.
+                if (recaptchaVerifierRef.current) {
+                    try { recaptchaVerifierRef.current.clear(); } catch (_) { }
+                    recaptchaVerifierRef.current = null;
                 }
+                const host = document.getElementById('recaptcha-container');
+                let target: HTMLElement | string = 'recaptcha-container';
+                if (host) {
+                    host.innerHTML = '';
+                    const fresh = document.createElement('div');
+                    host.appendChild(fresh);
+                    target = fresh;
+                }
+                recaptchaVerifierRef.current = new WebRecaptchaVerifier(webAuth, target, {
+                    size: 'invisible',
+                });
                 const confirmation = await webSignInWithPhoneNumber(webAuth, e164Phone, recaptchaVerifierRef.current);
                 confirmationRef.current = confirmation;
             } else {
