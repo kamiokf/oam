@@ -51,6 +51,7 @@ export default function DriverProfile() {
         { icon: 'person-circle' as const, label: 'Personal Information', subtitle: 'Name, phone, email', route: null },
         { icon: 'shield-checkmark' as const, label: 'Background Checks', subtitle: `${verificationLabel}`, route: '/(shared)/background-checks' },
         { icon: 'navigate' as const, label: 'Trip Log', subtitle: 'GPS-verified trips & mileage', route: '/(driver)/trip-logger' },
+        { icon: 'water' as const, label: 'Fuel Prices', subtitle: 'Find the cheapest fuel nearby', route: '/(shared)/fuel-prices' },
         { icon: 'document-text' as const, label: 'Documents', subtitle: 'License, badges, records', badge: '1 Expiring', route: '/(shared)/background-checks' },
         { icon: 'star' as const, label: 'Reviews & Ratings', subtitle: reviewSubtitle, route: '/(shared)/reviews' },
         { icon: 'gift' as const, label: 'Referrals', subtitle: referralSubtitle, route: '/(shared)/referrals' },

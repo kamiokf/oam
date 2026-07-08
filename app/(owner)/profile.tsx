@@ -53,6 +53,7 @@ export default function OwnerProfile() {
         { icon: 'shield-checkmark' as const, label: 'Verification Status', subtitle: 'Business verified', route: null },
         { icon: 'wallet' as const, label: 'Payment Settings', subtitle: 'Bank accounts, payment methods', route: null },
         { icon: 'people' as const, label: 'Team Access', subtitle: 'Manage team members', route: '/(owner)/drivers' },
+        { icon: 'water' as const, label: 'Fuel Prices', subtitle: 'Find the cheapest fuel nearby', route: '/(shared)/fuel-prices' },
         { icon: 'notifications' as const, label: 'Notifications', subtitle: 'Alerts, reminders, updates', route: '/(shared)/notifications' },
         { icon: 'help-circle' as const, label: 'Help & Support', subtitle: 'FAQ, contact support', route: null },
         { icon: 'settings' as const, label: 'Settings', subtitle: 'Privacy, about, language', route: '/(shared)/settings' },
