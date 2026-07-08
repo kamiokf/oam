@@ -42,14 +42,59 @@ interface PriceReport {
     created_at: string;
 }
 
-// latest report per station+grade
-type LatestPrices = Record<string, Partial<Record<FuelGrade, PriceReport>>>;
+// Consensus price per station+grade: median of reports in the recent window
+// (falls back to the single newest report when nothing recent exists). The
+// median resists bad/joke reports once volume grows; count + spread expose
+// how much agreement backs a price.
+const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface PriceSummary {
+    price: number;      // median of recent reports
+    count: number;      // reports contributing to the median
+    newest: PriceReport; // drives freshness + reporter attribution
+    disputed: boolean;   // recent reports disagree by >10%
+}
+type PriceMap = Record<string, Partial<Record<FuelGrade, PriceSummary>>>;
+
+const median = (nums: number[]): number => {
+    const s = [...nums].sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+};
+
+const summarize = (reports: PriceReport[]): PriceMap => {
+    const grouped: Record<string, Partial<Record<FuelGrade, PriceReport[]>>> = {};
+    for (const r of reports) {
+        const g = r.fuel_grade as FuelGrade;
+        (grouped[r.station_id] ??= {});
+        (grouped[r.station_id][g] ??= []).push(r);
+    }
+    const cutoff = Date.now() - RECENT_WINDOW_MS;
+    const out: PriceMap = {};
+    for (const [stationId, grades] of Object.entries(grouped)) {
+        out[stationId] = {};
+        for (const [g, list] of Object.entries(grades) as [FuelGrade, PriceReport[]][]) {
+            const sorted = [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            const recent = sorted.filter((r) => new Date(r.created_at).getTime() >= cutoff);
+            const pool = recent.length ? recent : [sorted[0]];
+            const prices = pool.map((r) => Number(r.price));
+            const med = median(prices);
+            out[stationId][g] = {
+                price: med,
+                count: pool.length,
+                newest: sorted[0],
+                disputed: pool.length >= 2 && (Math.max(...prices) - Math.min(...prices)) / med > 0.1,
+            };
+        }
+    }
+    return out;
+};
 
 export default function FuelPricesScreen() {
     const router = useRouter();
     const { user } = useAuth();
     const [stations, setStations] = useState<Station[]>([]);
-    const [latest, setLatest] = useState<LatestPrices>({});
+    const [reports, setReports] = useState<PriceReport[]>([]);
     const [grade, setGrade] = useState<FuelGrade>('e10_87');
     const [userLoc, setUserLoc] = useState<LatLng | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -67,14 +112,7 @@ export default function FuelPricesScreen() {
             if (stRes.error) throw stRes.error;
             if (rpRes.error) throw rpRes.error;
             setStations((stRes.data || []).map((s: any) => ({ ...s, lat: Number(s.lat), lng: Number(s.lng) })));
-            const map: LatestPrices = {};
-            for (const r of (rpRes.data || []) as PriceReport[]) {
-                const g = r.fuel_grade as FuelGrade;
-                if (!map[r.station_id]) map[r.station_id] = {};
-                // Reports are ordered newest-first, so first one wins
-                if (!map[r.station_id][g]) map[r.station_id][g] = { ...r, price: Number(r.price) };
-            }
-            setLatest(map);
+            setReports(((rpRes.data || []) as PriceReport[]).map((r) => ({ ...r, price: Number(r.price) })));
         } catch (err) {
             console.error('Failed to fetch fuel prices:', err);
         } finally {
@@ -84,18 +122,37 @@ export default function FuelPricesScreen() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    // Geolocate (web); native falls back to Kingston until expo-location ships
+    // Geolocate: browser API on web; expo-location on native (lazy require so
+    // dev clients built before the module was added don't crash — they just
+    // keep the Kingston default).
     useEffect(() => {
-        if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                () => { /* denied — keep Kingston default */ },
-                { timeout: 8000, maximumAge: 300000 }
-            );
+        if (Platform.OS === 'web') {
+            if (typeof navigator !== 'undefined' && navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                    () => { /* denied — keep Kingston default */ },
+                    { timeout: 8000, maximumAge: 300000 }
+                );
+            }
+            return;
         }
+        (async () => {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const Location = require('expo-location');
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') return;
+                const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            } catch {
+                /* module unavailable or permission error — keep Kingston default */
+            }
+        })();
     }, []);
 
     const center = userLoc || DEFAULT_CENTER;
+
+    const latest = useMemo(() => summarize(reports), [reports]);
 
     const ranked = useMemo(() => {
         const rows = stations.map((s) => {
@@ -153,7 +210,7 @@ export default function FuelPricesScreen() {
             }).select('*').single();
             if (error) throw error;
             const rep = { ...(data as PriceReport), price: Number((data as any).price) };
-            setLatest((prev) => ({ ...prev, [selected.id]: { ...prev[selected.id], [reportGrade]: rep } }));
+            setReports((prev) => [rep, ...prev]);
             setReportPrice('');
             showAlert('Price updated', `Thanks! ${selected.name} now shows J$${price.toFixed(1)}/L for ${FUEL_GRADES.find(g => g.key === reportGrade)?.label}.`);
         } catch (err: any) {
@@ -227,8 +284,13 @@ export default function FuelPricesScreen() {
                             <View style={styles.stationInfo}>
                                 <Text style={styles.stationName} numberOfLines={1}>{station.name}</Text>
                                 <Text style={styles.stationMeta} numberOfLines={1}>
-                                    {[station.brand, formatDistance(distanceKm), report ? `${timeAgo(report.created_at)}${report.reporter_name ? ` by ${report.reporter_name}` : ''}` : null]
-                                        .filter(Boolean).join(' • ')}
+                                    {[
+                                        station.brand,
+                                        formatDistance(distanceKm),
+                                        report && report.count > 1 ? `${report.count} reports` : null,
+                                        report ? `${timeAgo(report.newest.created_at)}${report.newest.reporter_name ? ` by ${report.newest.reporter_name}` : ''}` : null,
+                                    ].filter(Boolean).join(' • ')}
+                                    {report?.disputed ? '  ⚠ prices vary' : ''}
                                 </Text>
                             </View>
                             <View style={styles.priceCol}>
@@ -271,8 +333,11 @@ export default function FuelPricesScreen() {
                                         <Text style={styles.gradeLineLabel}>{g.label}</Text>
                                         {rep ? (
                                             <View style={styles.gradeLineRight}>
-                                                <Text style={styles.gradeLinePrice}>J${Number(rep.price).toFixed(1)}</Text>
-                                                <Text style={styles.gradeLineMeta}>{timeAgo(rep.created_at)}{rep.reporter_name ? ` • ${rep.reporter_name}` : ''}</Text>
+                                                <Text style={styles.gradeLinePrice}>J${rep.price.toFixed(1)}{rep.disputed ? ' ⚠' : ''}</Text>
+                                                <Text style={styles.gradeLineMeta}>
+                                                    {rep.count > 1 ? `median of ${rep.count} • ` : ''}
+                                                    {timeAgo(rep.newest.created_at)}{rep.newest.reporter_name ? ` • ${rep.newest.reporter_name}` : ''}
+                                                </Text>
                                             </View>
                                         ) : (
                                             <Text style={styles.gradeLineEmpty}>Not reported</Text>
