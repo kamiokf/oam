@@ -47,6 +47,14 @@
         {
           "locationWhenInUsePermission": "One'N'Move uses your location to find the cheapest fuel stations near you."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
       ]
     ],
     "extra": {
